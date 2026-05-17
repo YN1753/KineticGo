@@ -1,0 +1,8 @@
+.claude
+.idea
+frontend/dist
+frontend/node_modules
+data
+项目规划.md
+build
+kineticgo.db
