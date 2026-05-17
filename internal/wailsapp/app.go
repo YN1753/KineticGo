@@ -94,3 +94,15 @@ func (a *App) GetTaskExecutions(limit int) ([]model.TaskExecution, error) {
 func (a *App) GetTaskLogsByExecution(execId uint) ([]model.TaskLog, error) {
 	return a.taskManage.GetTaskLogsByExecution(execId)
 }
+
+func (a *App) GetVersion() string {
+	return service.Version
+}
+
+func (a *App) CheckUpdate() (*service.UpdateInfo, error) {
+	return service.CheckUpdate()
+}
+
+func (a *App) ApplyUpdate(downloadURL string) error {
+	return service.ApplyUpdate(downloadURL)
+}

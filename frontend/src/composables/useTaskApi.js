@@ -116,11 +116,36 @@ export function useTaskApi() {
     return await app.GetTaskLogsByExecution(execId)
   }
 
+  async function getVersion() {
+    try {
+      const app = await getApp()
+      return await app.GetVersion()
+    } catch {
+      return 'dev'
+    }
+  }
+
+  async function checkUpdate() {
+    try {
+      const app = await getApp()
+      return await app.CheckUpdate()
+    } catch (e) {
+      console.warn('CheckUpdate failed', e)
+      return null
+    }
+  }
+
+  async function applyUpdate(url) {
+    const app = await getApp()
+    return await app.ApplyUpdate(url)
+  }
+
   return {
     taskList, scheduleList, runningIds, loading,
     fetchTaskList, fetchTaskConfig, fetchScheduleList, fetchScheduleById,
     createSchedule, updateSchedule, deleteSchedule,
     runTask, stopTask, fetchRunningIds,
     fetchExecutions, fetchLogsByExecution,
+    getVersion, checkUpdate, applyUpdate,
   }
 }

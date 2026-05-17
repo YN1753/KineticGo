@@ -3,6 +3,10 @@
 import {model} from '../models';
 import {json} from '../models';
 
+export function ApplyUpdate(arg1:string):Promise<void>;
+
+export function CheckUpdate():Promise<model.UpdateInfo>;
+
 export function CreateTaskSchedule(arg1:model.TaskSchedule):Promise<void>;
 
 export function DeleteTaskSchedule(arg1:number):Promise<void>;
@@ -20,6 +24,8 @@ export function GetTaskLogsByExecution(arg1:number):Promise<Array<model.TaskLog>
 export function GetTaskScheduleById(arg1:number):Promise<model.TaskSchedule>;
 
 export function GetTaskScheduleList():Promise<Array<model.TaskSchedule>>;
+
+export function GetVersion():Promise<string>;
 
 export function RunTask(arg1:number):Promise<void>;
 
