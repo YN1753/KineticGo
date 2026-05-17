@@ -43,9 +43,11 @@ export function useTaskApi() {
     try {
       const app = await getApp()
       scheduleList.value = (await app.GetTaskScheduleList()) ?? []
+      return scheduleList.value
     } catch {
       console.warn('[mock] GetTaskScheduleList')
       scheduleList.value = []
+      return []
     } finally {
       loading.value = false
     }
@@ -104,10 +106,21 @@ export function useTaskApi() {
     }
   }
 
+  async function fetchExecutions(limit = 50) {
+    const app = await getApp()
+    return await app.GetTaskExecutions(limit)
+  }
+
+  async function fetchLogsByExecution(execId) {
+    const app = await getApp()
+    return await app.GetTaskLogsByExecution(execId)
+  }
+
   return {
     taskList, scheduleList, runningIds, loading,
     fetchTaskList, fetchTaskConfig, fetchScheduleList, fetchScheduleById,
     createSchedule, updateSchedule, deleteSchedule,
     runTask, stopTask, fetchRunningIds,
+    fetchExecutions, fetchLogsByExecution,
   }
 }

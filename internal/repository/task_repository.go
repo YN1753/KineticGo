@@ -5,6 +5,7 @@ import (
 	"errors"
 	"kineticgo/internal/model"
 	"sync/atomic"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -80,4 +81,44 @@ func (t *TaskRepository) GetEnabledSystemSchedules() ([]model.TaskSchedule, erro
 		return nil, err
 	}
 	return schedules, nil
+}
+
+func (t *TaskRepository) GetEnabledCronSchedules() ([]model.TaskSchedule, error) {
+	var schedules []model.TaskSchedule
+	err := t.Db.Where("cron_expr <> '' AND is_enabled = ?", true).Find(&schedules).Error
+	if err != nil {
+		return nil, err
+	}
+	return schedules, nil
+}
+
+func (t *TaskRepository) CreateTaskLog(log *model.TaskLog) error {
+	t.Db.Create(log)
+	return nil
+}
+
+func (t *TaskRepository) CreateTaskExecution(task *model.TaskExecution) error {
+	t.Db.Create(task)
+	return nil
+}
+
+func (t *TaskRepository) UpdateTaskExecution(id uint, status, summary string, endTime time.Time) error {
+	return t.Db.Model(&model.TaskExecution{}).Where("id = ?", id).
+		Updates(map[string]any{
+			"status":         status,
+			"result_summary": summary,
+			"end_time":       endTime,
+		}).Error
+}
+
+func (t *TaskRepository) GetTaskExecutions(limit int) ([]model.TaskExecution, error) {
+	var list []model.TaskExecution
+	err := t.Db.Order("id DESC").Limit(limit).Find(&list).Error
+	return list, err
+}
+
+func (t *TaskRepository) GetTaskLogsByExecution(execId uint) ([]model.TaskLog, error) {
+	var list []model.TaskLog
+	err := t.Db.Where("execution_id = ?", execId).Order("id ASC").Find(&list).Error
+	return list, err
 }

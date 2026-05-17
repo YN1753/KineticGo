@@ -22,14 +22,21 @@ func NewApp(taskManage *service.TaskManageService) *App {
 
 func (a *App) OnStartup(ctx context.Context) {
 	a.ctx = ctx
+	a.taskManage.SetRootCtx(ctx)
 	a.taskManage.RegisterSystem("local_cpu", service.NewCpuService)
 	a.taskManage.RegisterSystem("local_memory", service.NewMemeryService)
 	a.taskManage.RegisterSystem("active_tasks", service.NewActiveTasksService)
 	a.taskManage.RegisterSystem("local_network", service.NewNetworkService)
+	a.taskManage.Register("campus_auth", service.NewSuseWifiService)
+	a.taskManage.LoadEnabledCronSchedules()
 	go func() {
 		time.Sleep(1 * time.Second)
 		a.taskManage.AutoStartSystemTasks(a.ctx)
 	}()
+}
+
+func (a *App) OnShutdown(ctx context.Context) {
+	a.taskManage.Shutdown()
 }
 
 func (a *App) GetTaskList() ([]model.Task, error) {
@@ -78,4 +85,12 @@ func (a *App) StopTask(scheduleID uint) error {
 
 func (a *App) GetRunningTaskIds() []uint {
 	return a.taskManage.GetRunningTaskIds()
+}
+
+func (a *App) GetTaskExecutions(limit int) ([]model.TaskExecution, error) {
+	return a.taskManage.GetTaskExecutions(limit)
+}
+
+func (a *App) GetTaskLogsByExecution(execId uint) ([]model.TaskLog, error) {
+	return a.taskManage.GetTaskLogsByExecution(execId)
 }

@@ -11,7 +11,11 @@ export function GetRunningTaskIds():Promise<Array<number>>;
 
 export function GetTaskConfigById(arg1:number):Promise<json.RawMessage>;
 
+export function GetTaskExecutions(arg1:number):Promise<Array<model.TaskExecution>>;
+
 export function GetTaskList():Promise<Array<model.Task>>;
+
+export function GetTaskLogsByExecution(arg1:number):Promise<Array<model.TaskLog>>;
 
 export function GetTaskScheduleById(arg1:number):Promise<model.TaskSchedule>;
 

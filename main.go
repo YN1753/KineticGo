@@ -21,11 +21,12 @@ func main() {
 	}()
 
 	err := wails.Run(&options.App{
-		Title:     "KineticGo",
-		Width:     1024,
-		Height:    768,
-		Assets:    DesktopDist,
-		OnStartup: app.OnStartup,
+		Title:      "KineticGo",
+		Width:      1024,
+		Height:     768,
+		Assets:     DesktopDist,
+		OnStartup:  app.OnStartup,
+		OnShutdown: app.OnShutdown,
 
 		Bind: []interface{}{
 			app,

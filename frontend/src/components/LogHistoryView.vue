@@ -1,51 +1,96 @@
 <script setup>
-import { ref } from 'vue'
-import { ScrollText, ChevronDown, ChevronRight, Clock, AlertCircle, CheckCircle2, XCircle } from 'lucide-vue-next'
+import { ref, onMounted } from 'vue'
+import {
+  ScrollText, ChevronDown, ChevronRight,
+  CheckCircle2, AlertCircle, XCircle, Clock
+} from 'lucide-vue-next'
+import { useTaskApi } from '../composables/useTaskApi'
 
-const executions = ref([
-  { id: 1, taskName: '校园网自动连', triggerType: 'auto', status: 'success', resultSummary: '登录成功', startTime: '2026-05-16 14:02:13', endTime: '2026-05-16 14:02:15', logs: [
-    { time: '14:02:13', level: 'info', message: '检测网络连接状态' },
-    { time: '14:02:13', level: 'warn', message: '发现网络掉线' },
-    { time: '14:02:14', level: 'info', message: '正在执行自动登录...' },
-    { time: '14:02:15', level: 'info', message: '认证成功，网络已恢复' },
-  ]},
-  { id: 2, taskName: '性能压测', triggerType: 'manual', status: 'success', resultSummary: 'QPS avg=342 p99=89ms', startTime: '2026-05-16 13:30:00', endTime: '2026-05-16 13:31:00', logs: [
-    { time: '13:30:00', level: 'info', message: '初始化压测引擎，目标: https://api.example.com' },
-    { time: '13:30:01', level: 'info', message: '建立连接池，并发数: 50' },
-    { time: '13:30:15', level: 'info', message: 'QPS: 342, 延迟 avg=23ms p99=89ms' },
-    { time: '13:31:00', level: 'info', message: '压测完成，总请求: 20520, 失败: 0' },
-  ]},
-  { id: 3, taskName: '延迟雷达', triggerType: 'auto', status: 'warning', resultSummary: '检测到延迟波动', startTime: '2026-05-16 12:00:00', endTime: '2026-05-16 12:05:00', logs: [
-    { time: '12:00:00', level: 'info', message: '启动延迟探测: 114.114.114.114' },
-    { time: '12:01:30', level: 'warn', message: '延迟升高: avg=120ms (正常 <30ms)' },
-    { time: '12:03:00', level: 'warn', message: '丢包率: 2.3%' },
-    { time: '12:05:00', level: 'info', message: '延迟恢复正常: avg=15ms' },
-  ]},
-])
+const { fetchExecutions, fetchLogsByExecution, fetchScheduleList } = useTaskApi()
 
+const executions = ref([])
+const scheduleMap = ref({})
 const expandedId = ref(null)
+const loading = ref(false)
 
-function toggleExpand(id) {
-  expandedId.value = expandedId.value === id ? null : id
+async function load() {
+  loading.value = true
+  try {
+    const [execs, schedules] = await Promise.all([
+      fetchExecutions(50),
+      fetchScheduleList(),
+    ])
+    executions.value = execs ?? []
+    const map = {}
+    for (const s of (schedules ?? [])) {
+      map[s.ID] = s.Name
+    }
+    scheduleMap.value = map
+  } catch (e) {
+    console.warn('加载历史日志失败', e)
+    executions.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
-function statusIcon(status) {
-  if (status === 'success') return CheckCircle2
-  if (status === 'warning') return AlertCircle
-  return XCircle
+async function toggleExpand(exec) {
+  if (expandedId.value === exec.ID) {
+    expandedId.value = null
+    return
+  }
+  if (!exec._logs) {
+    try {
+      exec._logs = await fetchLogsByExecution(exec.ID)
+    } catch {
+      exec._logs = []
+    }
+  }
+  expandedId.value = exec.ID
 }
 
-function statusClass(status) {
-  if (status === 'success') return 'text-accent-green'
-  if (status === 'warning') return 'text-accent-amber'
-  return 'text-accent-red'
+function scheduleName(optionId) {
+  return scheduleMap.value[optionId] ?? '未知任务'
+}
+
+function formatTime(val) {
+  if (!val) return '-'
+  const d = new Date(val)
+  if (isNaN(d.getTime())) return String(val)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+function duration(start, end) {
+  if (!start || !end) return '-'
+  const s = new Date(start), e = new Date(end)
+  const ms = e - s
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
+function statusConfig(status) {
+  if (status === 'success') {
+    return { icon: CheckCircle2, cls: 'text-accent-green', text: '成功' }
+  }
+  if (status === 'running') {
+    return { icon: Clock, cls: 'text-accent-blue', text: '运行中' }
+  }
+  return { icon: XCircle, cls: 'text-accent-red', text: '失败' }
+}
+
+function triggerBadge(type) {
+  if (type === 'manual') return { text: '手动', cls: 'bg-black/[0.04] text-dark-muted' }
+  return { text: '定时', cls: 'bg-accent-blue/10 text-accent-blue' }
 }
 
 function levelClass(level) {
-  if (level === 'warn') return 'text-accent-amber'
   if (level === 'error') return 'text-accent-red'
+  if (level === 'warn') return 'text-accent-amber'
   return 'text-dark-muted'
 }
+
+onMounted(load)
 </script>
 
 <template>
@@ -57,75 +102,92 @@ function levelClass(level) {
     </div>
 
     <div class="max-w-7xl mx-auto px-6 py-6">
-      <div v-if="executions.length === 0" class="py-24 text-center">
+      <div v-if="loading" class="py-24 text-center text-dark-muted text-sm">加载中...</div>
+
+      <div v-else-if="executions.length === 0" class="py-24 text-center">
         <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-black/[0.04] mb-4">
           <ScrollText :size="28" class="text-dark-muted/50" />
         </div>
         <div class="text-dark-muted text-sm">暂无执行记录</div>
       </div>
 
-      <div v-else class="glass-panel overflow-hidden">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-dark-border text-dark-muted text-xs uppercase tracking-wider">
-              <th class="text-left px-5 py-3 font-medium w-8"></th>
-              <th class="text-left px-5 py-3 font-medium">任务</th>
-              <th class="text-left px-5 py-3 font-medium">触发</th>
-              <th class="text-left px-5 py-3 font-medium">状态</th>
-              <th class="text-left px-5 py-3 font-medium">结果</th>
-              <th class="text-left px-5 py-3 font-medium">开始时间</th>
-              <th class="text-left px-5 py-3 font-medium">耗时</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-for="exec in executions" :key="exec.id">
-              <tr
-                @click="toggleExpand(exec.id)"
-                class="border-b border-dark-border hover:bg-black/[0.03] cursor-pointer transition-colors"
+      <div v-else class="space-y-3">
+        <div
+          v-for="exec in executions"
+          :key="exec.ID"
+          class="rounded-2xl border border-dark-border bg-dark-card overflow-hidden transition-all duration-200 hover:border-dark-border/80"
+        >
+          <!-- card header -->
+          <div
+            @click="toggleExpand(exec)"
+            class="px-5 py-4 flex items-center justify-between cursor-pointer select-none"
+          >
+            <div class="flex items-center gap-3 min-w-0">
+              <component
+                :is="statusConfig(exec.Status).icon"
+                :size="18"
+                :class="statusConfig(exec.Status).cls"
+                class="shrink-0"
+              />
+              <div class="min-w-0">
+                <div class="text-sm font-medium text-dark-text truncate">
+                  {{ scheduleName(exec.OptionID) }}
+                </div>
+                <div class="text-[11px] text-dark-muted mt-0.5 flex items-center gap-2">
+                  <span>{{ formatTime(exec.StartTime) }}</span>
+                  <span class="text-dark-muted/40">·</span>
+                  <span>耗时 {{ duration(exec.StartTime, exec.EndTime) }}</span>
+                  <span v-if="exec.ResultSummary" class="text-dark-muted/40">·</span>
+                  <span v-if="exec.ResultSummary" class="truncate max-w-[200px]">{{ exec.ResultSummary }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 shrink-0 ml-3">
+              <span
+                class="text-[10px] px-2 py-0.5 rounded-full"
+                :class="triggerBadge(exec.TriggerType).cls"
               >
-                <td class="px-5 py-3 text-dark-muted">
-                  <component :is="expandedId === exec.id ? ChevronDown : ChevronRight" :size="14" />
-                </td>
-                <td class="px-5 py-3 font-medium text-dark-text">{{ exec.taskName }}</td>
-                <td class="px-5 py-3">
-                  <span class="text-xs px-2 py-0.5 rounded-full bg-black/[0.04] text-dark-muted">
-                    {{ exec.triggerType === 'manual' ? '手动' : '自动' }}
+                {{ triggerBadge(exec.TriggerType).text }}
+              </span>
+              <span
+                class="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1"
+                :class="statusConfig(exec.Status).cls"
+              >
+                <component :is="statusConfig(exec.Status).icon" :size="10" />
+                {{ statusConfig(exec.Status).text }}
+              </span>
+              <component
+                :is="expandedId === exec.ID ? ChevronDown : ChevronRight"
+                :size="14"
+                class="text-dark-muted/60"
+              />
+            </div>
+          </div>
+
+          <!-- expanded logs -->
+          <div v-if="expandedId === exec.ID" class="px-5 pb-4">
+            <div class="rounded-xl border border-dark-border overflow-hidden">
+              <div class="px-3 py-2 space-y-0.5 max-h-48 overflow-y-auto text-[11px] font-mono">
+                <div v-if="!exec._logs || exec._logs.length === 0" class="text-dark-muted/70 flex gap-2">
+                  <span class="text-accent-cyan/60 select-none">&gt;</span>
+                  <span>暂无日志</span>
+                </div>
+                <div
+                  v-for="log in exec._logs"
+                  :key="log.ID"
+                  class="flex gap-2"
+                >
+                  <span class="text-dark-muted/50 shrink-0">{{ formatTime(log.CreatedAt).split(' ')[1] }}</span>
+                  <span class="shrink-0 w-10 text-right" :class="levelClass(log.Level)">
+                    {{ (log.Level || 'info').toUpperCase() }}
                   </span>
-                </td>
-                <td class="px-5 py-3">
-                  <span class="flex items-center gap-1.5" :class="statusClass(exec.status)">
-                    <component :is="statusIcon(exec.status)" :size="14" />
-                    <span class="text-xs">{{ exec.status === 'success' ? '成功' : exec.status === 'warning' ? '警告' : '失败' }}</span>
-                  </span>
-                </td>
-                <td class="px-5 py-3 text-dark-muted text-xs">{{ exec.resultSummary }}</td>
-                <td class="px-5 py-3 text-dark-muted text-xs font-mono">{{ exec.startTime }}</td>
-                <td class="px-5 py-3 text-dark-muted text-xs font-mono">
-                  {{ exec.endTime && exec.startTime ? Math.round((new Date(exec.endTime) - new Date(exec.startTime)) / 1000) + 's' : '-' }}
-                </td>
-              </tr>
-              <tr v-if="expandedId === exec.id">
-                <td colspan="7" class="px-5 py-0">
-                  <div class="mini-console rounded-xl border border-dark-border my-3 overflow-hidden">
-                    <div class="px-4 py-3 space-y-1">
-                      <div
-                        v-for="(log, i) in exec.logs"
-                        :key="i"
-                        class="flex gap-3 text-xs animate-fade-in"
-                      >
-                        <span class="text-dark-muted/50 shrink-0 font-mono">{{ log.time }}</span>
-                        <span class="shrink-0 w-8 text-right" :class="levelClass(log.level)">
-                          {{ log.level.toUpperCase() }}
-                        </span>
-                        <span class="text-dark-text/80">{{ log.message }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
+                  <span class="text-dark-text/80 break-all">{{ log.Message }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

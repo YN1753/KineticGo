@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { Cpu, MemoryStick, Activity, ArrowUp, ArrowDown, Plus, X, ScrollText, Wifi, Zap, Radar, Terminal } from 'lucide-vue-next'
+import { Cpu, MemoryStick, Activity, ArrowUp, ArrowDown, Plus, X, ScrollText, Wifi, Zap, Radar, Terminal, Clock, Hand } from 'lucide-vue-next'
 import { useSystemStats } from '../composables/useSystemStats'
 import { useTaskApi } from '../composables/useTaskApi'
 import TaskCard from './TaskCard.vue'
@@ -34,6 +34,21 @@ const configInitial = ref({})
 const editingSchedule = ref(null)
 const scheduleToDelete = ref(null)
 
+// execution mode & cron
+const chosenExecMode = ref('manual')
+const lockExecMode = ref(false)
+const cronExpr = ref('')
+const cronError = ref('')
+
+const CRON_PRESETS = [
+  { label: '每分钟', expr: '* * * * *' },
+  { label: '每 5 分钟', expr: '*/5 * * * *' },
+  { label: '每小时', expr: '0 * * * *' },
+  { label: '每天 9:00', expr: '0 9 * * *' },
+  { label: '每天 0:00', expr: '0 0 * * *' },
+  { label: '工作日 9:00', expr: '0 9 * * 1-5' },
+]
+
 async function openPicker() {
   await fetchTaskList()
   showPicker.value = true
@@ -46,6 +61,19 @@ async function selectTask(task) {
   configFields.value = Array.isArray(raw) ? raw : []
   configInitial.value = {}
   editingSchedule.value = null
+
+  // 根据模板的 ExecMode 决定执行方式默认值与可切换性
+  const mode = task.ExecMode || 'manual'
+  if (mode === 'both') {
+    chosenExecMode.value = 'manual'
+    lockExecMode.value = false
+  } else {
+    chosenExecMode.value = mode === 'schedule' ? 'schedule' : 'manual'
+    lockExecMode.value = true
+  }
+  cronExpr.value = ''
+  cronError.value = ''
+
   showConfig.value = true
 }
 
@@ -74,23 +102,63 @@ async function editConfig(schedule) {
   } catch {
     configInitial.value = {}
   }
+
+  // 编辑时锁定执行模式，从现有数据恢复 cron
+  cronExpr.value = fresh.CronExpr || ''
+  cronError.value = ''
+  chosenExecMode.value = fresh.CronExpr ? 'schedule' : 'manual'
+  lockExecMode.value = true
+
   showConfig.value = true
 }
 
 async function submitConfig() {
+  cronError.value = ''
+  const isSchedule = chosenExecMode.value === 'schedule'
+  if (isSchedule && !cronExpr.value.trim()) {
+    cronError.value = '请填写 cron 表达式'
+    return
+  }
   const values = configForm.value?.getValues() ?? {}
+  const cronToSend = isSchedule ? cronExpr.value.trim() : ''
+
   if (editingSchedule.value) {
-    await updateSchedule({ ...editingSchedule.value, Config: JSON.stringify(values) })
+    await updateSchedule({
+      ...editingSchedule.value,
+      Config: JSON.stringify(values),
+      CronExpr: cronToSend,
+    })
   } else {
     await createSchedule({
       Name: selectedTask.value.Name,
       TaskType: selectedTask.value.Type,
       Config: JSON.stringify(values),
+      CronExpr: cronToSend,
       IsEnabled: true,
     })
   }
-  showConfig.value = false
+  closeConfig()
   await fetchScheduleList()
+}
+
+function closeConfig() {
+  showConfig.value = false
+  cronExpr.value = ''
+  cronError.value = ''
+  chosenExecMode.value = 'manual'
+  lockExecMode.value = false
+  editingSchedule.value = null
+}
+
+function selectExecMode(mode) {
+  if (lockExecMode.value && mode !== chosenExecMode.value) return
+  chosenExecMode.value = mode
+  cronError.value = ''
+}
+
+function applyCronPreset(expr) {
+  cronExpr.value = expr
+  cronError.value = ''
 }
 
 function confirmDelete(schedule) {
@@ -261,26 +329,88 @@ onUnmounted(() => {
     <!-- Config Modal -->
     <Teleport to="body">
       <div v-if="showConfig" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showConfig = false" />
-        <div class="relative glass-panel w-full max-w-md mx-4 overflow-hidden animate-slide-up">
-          <div class="flex items-center justify-between px-6 py-4 border-b border-dark-border">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeConfig" />
+        <div class="relative glass-panel w-full max-w-md mx-4 overflow-hidden animate-slide-up max-h-[90vh] flex flex-col">
+          <div class="flex items-center justify-between px-6 py-4 border-b border-dark-border shrink-0">
             <h2 class="text-base font-semibold">{{ editingSchedule ? '修改配置' : '配置任务' }}</h2>
-            <button @click="showConfig = false" class="text-dark-muted hover:text-dark-text transition-colors p-1 rounded-lg hover:bg-black/[0.04]">
+            <button @click="closeConfig" class="text-dark-muted hover:text-dark-text transition-colors p-1 rounded-lg hover:bg-black/[0.04]">
               <X :size="18" />
             </button>
           </div>
-          <div class="p-6 space-y-5">
+          <div class="p-6 space-y-5 overflow-y-auto">
             <div class="flex items-center gap-2 text-sm">
               <span class="text-dark-muted">任务</span>
               <span class="text-dark-text font-medium px-2 py-0.5 rounded-lg bg-black/[0.04]">{{ selectedTask?.Name }}</span>
             </div>
+
+            <!-- 执行方式切换 -->
+            <div class="space-y-1.5">
+              <label class="block text-xs font-medium text-dark-muted uppercase tracking-wider">执行方式</label>
+              <div class="grid grid-cols-2 gap-1 p-1 bg-black/[0.03] rounded-xl border border-dark-border">
+                <button
+                  type="button"
+                  @click="selectExecMode('manual')"
+                  :disabled="lockExecMode && chosenExecMode !== 'manual'"
+                  class="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all"
+                  :class="[
+                    chosenExecMode === 'manual'
+                      ? 'bg-accent-blue text-white shadow-sm'
+                      : (lockExecMode ? 'text-dark-muted/40 cursor-not-allowed' : 'text-dark-muted hover:text-dark-text hover:bg-black/[0.04]')
+                  ]"
+                >
+                  <Hand :size="13" />
+                  手动
+                </button>
+                <button
+                  type="button"
+                  @click="selectExecMode('schedule')"
+                  :disabled="lockExecMode && chosenExecMode !== 'schedule'"
+                  class="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all"
+                  :class="[
+                    chosenExecMode === 'schedule'
+                      ? 'bg-accent-blue text-white shadow-sm'
+                      : (lockExecMode ? 'text-dark-muted/40 cursor-not-allowed' : 'text-dark-muted hover:text-dark-text hover:bg-black/[0.04]')
+                  ]"
+                >
+                  <Clock :size="13" />
+                  定时
+                </button>
+              </div>
+            </div>
+
+            <!-- cron 输入区 -->
+            <div v-if="chosenExecMode === 'schedule'" class="space-y-2">
+              <label class="block text-xs font-medium text-dark-muted uppercase tracking-wider">Cron 表达式</label>
+              <input
+                v-model="cronExpr"
+                type="text"
+                placeholder="分 时 日 月 周（例如 */5 * * * *）"
+                class="w-full px-3.5 py-2.5 bg-black/[0.03] border rounded-xl text-sm text-dark-text placeholder-dark-muted/60 focus:outline-none focus:ring-1 transition-all font-mono"
+                :class="cronError ? 'border-accent-red/60 focus:border-accent-red/80 focus:ring-accent-red/20' : 'border-dark-border focus:border-accent-blue/50 focus:ring-accent-blue/20'"
+                @input="cronError = ''"
+              />
+              <div v-if="cronError" class="text-[11px] text-accent-red">{{ cronError }}</div>
+              <div class="flex flex-wrap gap-1.5 pt-1">
+                <button
+                  v-for="p in CRON_PRESETS"
+                  :key="p.expr"
+                  type="button"
+                  @click="applyCronPreset(p.expr)"
+                  class="px-2.5 py-1 text-[11px] rounded-lg bg-black/[0.04] hover:bg-accent-blue/10 hover:text-accent-blue text-dark-muted transition-colors"
+                >
+                  {{ p.label }}
+                </button>
+              </div>
+            </div>
+
             <TaskConfigForm
               v-if="configFields.length > 0"
               ref="configForm"
               :fields="configFields"
               :initial-values="configInitial"
             />
-            <div v-else class="py-4 text-center text-dark-muted text-sm">该任务无需配置</div>
+            <div v-else-if="chosenExecMode !== 'schedule'" class="py-4 text-center text-dark-muted text-sm">该任务无需配置</div>
+
             <button
               @click="submitConfig"
               class="w-full py-2.5 bg-accent-blue hover:bg-accent-blue/90 text-white rounded-xl text-sm font-medium transition-all duration-200 active:scale-[0.98]"

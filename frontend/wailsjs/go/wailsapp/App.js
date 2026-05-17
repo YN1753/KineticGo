@@ -18,8 +18,16 @@ export function GetTaskConfigById(arg1) {
   return window['go']['wailsapp']['App']['GetTaskConfigById'](arg1);
 }
 
+export function GetTaskExecutions(arg1) {
+  return window['go']['wailsapp']['App']['GetTaskExecutions'](arg1);
+}
+
 export function GetTaskList() {
   return window['go']['wailsapp']['App']['GetTaskList']();
+}
+
+export function GetTaskLogsByExecution(arg1) {
+  return window['go']['wailsapp']['App']['GetTaskLogsByExecution'](arg1);
 }
 
 export function GetTaskScheduleById(arg1) {

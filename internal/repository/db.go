@@ -37,7 +37,15 @@ func DbSeedInit(db *gorm.DB) {
 	templates := InitTaskTemplates()
 	var newTemplates []model.Task
 	for _, tpl := range templates {
-		if !templateExistMap[tpl.Name] {
+		if templateExistMap[tpl.Name] {
+			db.Model(&model.Task{}).Where("name = ?", tpl.Name).
+				Updates(map[string]any{
+					"type":        tpl.Type,
+					"description": tpl.Description,
+					"config":      tpl.Config,
+					"exec_mode":   tpl.ExecMode,
+				})
+		} else {
 			newTemplates = append(newTemplates, tpl)
 		}
 	}
@@ -105,7 +113,8 @@ func InitTaskTemplates() []model.Task {
 			Name:        "校园网自动连",
 			Description: "检测网络状态并在掉线时自动执行登录认证",
 			Config: model.TempleConfig(`[
-				{"field": "portal_url", "label": "认证中心地址", "input_type": "text", "placeholder": "http://10.23.2.4"},
+				{"field": "address", "label": "地点", "input_type": "select", "options": [{"value": "宜宾", "label": "宜宾"}, {"value": "自贡", "label": "自贡"}]},
+				{"field": "service", "label": "服务商", "input_type": "select", "options": [{"value": "移动", "label": "移动"}, {"value": "电信", "label": "电信"}, {"value": "联通", "label": "联通"}]},
 				{"field": "username", "label": "校园网账号", "input_type": "text", "placeholder": "请输入学号"},
 				{"field": "password", "label": "密码", "input_type": "password", "placeholder": "请输入密码"}
 			]`),

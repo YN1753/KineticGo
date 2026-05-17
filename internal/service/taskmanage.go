@@ -6,25 +6,75 @@ import (
 	"errors"
 	"kineticgo/internal/model"
 	"kineticgo/internal/repository"
+	"strings"
 	"sync"
+	"time"
 
+	"github.com/robfig/cron/v3"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type TaskManageService struct {
-	TaskRepo *repository.TaskRepository
-	registry map[string]func() model.TaskInstance
-	running  map[uint]model.RunningTask
-	mutex    sync.RWMutex
+	TaskRepo  *repository.TaskRepository
+	registry  map[string]func() model.TaskInstance
+	running   map[uint]model.RunningTask
+	scheduler *Scheduler
+	rootCtx   context.Context
+	mutex     sync.RWMutex
 }
 
 // 初始化部分方法和函数
 func NewTaskManageService(task *repository.TaskRepository) *TaskManageService {
-	return &TaskManageService{
+	t := &TaskManageService{
 		TaskRepo: task,
 		registry: make(map[string]func() model.TaskInstance),
 		running:  make(map[uint]model.RunningTask),
 	}
+	t.scheduler = NewScheduler(t.runScheduled)
+	return t
+}
+
+// SetRootCtx 由 app 在 OnStartup 时注入，cron 触发的任务用这个 ctx，避免和窗口 ctx 绑死
+func (t *TaskManageService) SetRootCtx(ctx context.Context) {
+	t.rootCtx = ctx
+}
+
+// runScheduled 是注入给 Scheduler 的回调，到点拉起任务
+func (t *TaskManageService) runScheduled(scheduleId uint) {
+	if t.rootCtx == nil {
+		return
+	}
+	ctx := WithTrigger(t.rootCtx, "schedule")
+	if err := t.Start(ctx, scheduleId); err != nil {
+		runtime.EventsEmit(t.rootCtx, "task_log", map[string]any{
+			"scheduleId": scheduleId,
+			"level":      LogError,
+			"message":    "定时触发失败: " + err.Error(),
+			"time":       time.Now().Unix(),
+		})
+	}
+}
+
+// LoadEnabledCronSchedules 启动时调用：把所有启用的定时任务塞进调度器并启动 cron
+func (t *TaskManageService) LoadEnabledCronSchedules() {
+	list, err := t.TaskRepo.GetEnabledCronSchedules()
+	if err != nil {
+		if t.rootCtx != nil {
+			runtime.EventsEmit(t.rootCtx, "log", "加载定时任务失败: "+err.Error())
+		}
+		return
+	}
+	for i := range list {
+		if err := t.scheduler.Add(&list[i]); err != nil && t.rootCtx != nil {
+			runtime.EventsEmit(t.rootCtx, "log", "加载 schedule ["+list[i].Name+"] 失败: "+err.Error())
+		}
+	}
+	t.scheduler.Start()
+}
+
+// Shutdown 由 app 在 OnShutdown 时调用，优雅停掉所有定时任务
+func (t *TaskManageService) Shutdown() {
+	t.scheduler.Stop()
 }
 func (t *TaskManageService) Register(taskType string, constructor func(repo *repository.TaskRepository) model.TaskInstance) {
 	t.registry[taskType] = func() model.TaskInstance {
@@ -81,6 +131,22 @@ func (t *TaskManageService) Start(ctx context.Context, scheduleId uint) error {
 	instance := factory()
 	childCtx, cancel := context.WithCancel(ctx)
 
+	// 系统任务持续运行、日志噪声大，不写 execution / log 表
+	isSystem := strings.HasPrefix(task.TaskType, "system-")
+
+	var execId uint
+	if !isSystem {
+		exec := &model.TaskExecution{
+			OptionID:    scheduleId,
+			TriggerType: triggerFrom(ctx),
+			Status:      "running",
+			StartTime:   time.Now(),
+		}
+		_ = t.TaskRepo.CreateTaskExecution(exec)
+		execId = exec.ID
+	}
+	childCtx = withTaskLog(childCtx, t.TaskRepo, scheduleId, execId, !isSystem)
+
 	t.mutex.Lock()
 	t.running[scheduleId] = model.RunningTask{
 		Instance: instance,
@@ -90,10 +156,21 @@ func (t *TaskManageService) Start(ctx context.Context, scheduleId uint) error {
 
 	go func() {
 		t.TaskRepo.AddActiveTask(&t.TaskRepo.ActiveTasks)
-		err := instance.Run(childCtx, scheduleId)
-		if err != nil {
-			runtime.EventsEmit(childCtx, "log", err.Error())
+		runErr := instance.Run(childCtx, scheduleId)
+
+		if !isSystem && execId > 0 {
+			status := "success"
+			summary := "执行成功"
+			if runErr != nil {
+				status = "failed"
+				summary = runErr.Error()
+				TaskLog(childCtx, LogError, runErr.Error())
+			}
+			_ = t.TaskRepo.UpdateTaskExecution(execId, status, summary, time.Now())
+		} else if runErr != nil {
+			runtime.EventsEmit(childCtx, "log", runErr.Error())
 		}
+
 		t.mutex.Lock()
 		delete(t.running, scheduleId)
 		t.mutex.Unlock()
@@ -141,18 +218,60 @@ func (t *TaskManageService) GetTaskScheduleList() (*[]model.TaskSchedule, error)
 	return t.TaskRepo.GetTaskScheduleList()
 }
 
-func (t *TaskManageService) CreateTaskSchedule(task *model.TaskSchedule) error {
-	return t.TaskRepo.CreateTaskSchedule(task)
+func prepareCron(sch *model.TaskSchedule) error { //检验cron合法性并且算出下次时间
+	if sch.CronExpr == "" {
+		sch.NextRunTime = time.Time{}
+		return nil
+	}
+	schedule, err := cron.ParseStandard(sch.CronExpr)
+	if err != nil {
+		return errors.New("cron 表达式无效: " + err.Error())
+	}
+	sch.NextRunTime = schedule.Next(time.Now())
+	return nil
 }
 
-func (t *TaskManageService) UpdateTaskSchedule(task *model.TaskSchedule) error {
-	return t.TaskRepo.UpdateTaskSchedule(task)
+func (t *TaskManageService) syncScheduler(sch *model.TaskSchedule) error { //存入cron里面
+	t.scheduler.Remove(sch.ID) // 不存在是 no-op，安全
+	if sch.IsEnabled && sch.CronExpr != "" {
+		return t.scheduler.Add(sch)
+	}
+	return nil
+}
+
+func (t *TaskManageService) CreateTaskSchedule(sch *model.TaskSchedule) error {
+	if err := prepareCron(sch); err != nil {
+		return err
+	}
+	if err := t.TaskRepo.CreateTaskSchedule(sch); err != nil {
+		return err
+	}
+	return t.syncScheduler(sch)
+}
+
+func (t *TaskManageService) UpdateTaskSchedule(sch *model.TaskSchedule) error {
+	if err := prepareCron(sch); err != nil {
+		return err
+	}
+	if err := t.TaskRepo.UpdateTaskSchedule(sch); err != nil {
+		return err
+	}
+	return t.syncScheduler(sch)
 }
 
 func (t *TaskManageService) DeleteTaskSchedule(id uint) error {
+	t.scheduler.Remove(id)
 	return t.TaskRepo.DeleteTaskSchedule(id)
 }
 
 func (t *TaskManageService) GetTaskScheduleById(id uint) (*model.TaskSchedule, error) {
 	return t.TaskRepo.GetTaskScheduleById(id)
+}
+
+func (t *TaskManageService) GetTaskExecutions(limit int) ([]model.TaskExecution, error) {
+	return t.TaskRepo.GetTaskExecutions(limit)
+}
+
+func (t *TaskManageService) GetTaskLogsByExecution(execId uint) ([]model.TaskLog, error) {
+	return t.TaskRepo.GetTaskLogsByExecution(execId)
 }
