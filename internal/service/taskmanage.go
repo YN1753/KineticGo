@@ -171,6 +171,13 @@ func (t *TaskManageService) Start(ctx context.Context, scheduleId uint) error {
 			runtime.EventsEmit(childCtx, "log", runErr.Error())
 		}
 
+		// 定时任务跑完后刷新下次运行时间, 让前端的 "下次运行" 不再卡在首次计算结果
+		if task.CronExpr != "" {
+			if sched, parseErr := cron.ParseStandard(task.CronExpr); parseErr == nil {
+				_ = t.TaskRepo.UpdateScheduleNextRunTime(scheduleId, sched.Next(time.Now()))
+			}
+		}
+
 		t.mutex.Lock()
 		delete(t.running, scheduleId)
 		t.mutex.Unlock()

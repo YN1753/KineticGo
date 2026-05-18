@@ -10,7 +10,6 @@ import (
 	"kineticgo/pkg/location"
 	"math/big"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"strings"
 	"time"
@@ -51,7 +50,7 @@ type SignInService struct {
 }
 
 func NewSignInService(taskRepo *repository.TaskRepository) model.TaskInstance {
-	jar, _ := cookiejar.New(nil)
+	jar := NewPersistentJar()
 	return &SignInService{
 		TaskRepo: taskRepo,
 		client: &http.Client{
@@ -63,8 +62,10 @@ func NewSignInService(taskRepo *repository.TaskRepository) model.TaskInstance {
 
 func (s SignInService) Run(ctx context.Context, scheduleId uint) error {
 	info := func(msg string) { TaskLog(ctx, LogInfo, msg) }
+	warn := func(msg string) { TaskLog(ctx, LogWarn, msg) }
 
-	cfg, err := s.loadConfig(scheduleId)
+	// 1. 加载 schedule + config（schedule 对象用于后续保存 cookie）
+	schedule, cfg, err := s.loadScheduleAndConfig(scheduleId)
 	if err != nil {
 		return err
 	}
@@ -79,17 +80,38 @@ func (s SignInService) Run(ctx context.Context, scheduleId uint) error {
 
 	info("开始 652 自动签到 — " + cfg.Local + "校区")
 
-	// 每次 Run 重置 CookieJar,避免上次失败残留污染本次会话
-	jar, _ := cookiejar.New(nil)
+	// 2. 创建干净的 HTTP client (用 PersistentJar 保留完整 cookie 元数据)
+	jar := NewPersistentJar()
 	s.client.Jar = jar
 
-	// 登录(含 OCR 验证码 + 1 次重试)
+	// 3. 如果配置中已有 cookie，先尝试直接签到（跳过 CAS 登录）
+	savedCookies := parseCookiesFromConfig([]byte(schedule.Config))
+	if len(savedCookies) > 0 {
+		info("发现已保存的 session，尝试直接签到")
+		jar.Load(savedCookies)
+		directErr := s.doCheckIn(ctx, loc)
+		if directErr == nil {
+			info("直接签到成功（session 仍有效）")
+			return nil
+		}
+		warn("直接签到失败: " + directErr.Error() + "，准备重新登录")
+		// 清空 jar，准备重新登录
+		jar = NewPersistentJar()
+		s.client.Jar = jar
+	}
+
+	// 4. CAS 登录（含 OCR 验证码 + 1 次重试）
 	if err := s.loginWithRetry(ctx, cfg); err != nil {
 		return fmt.Errorf("登录失败: %w", err)
 	}
 	info("统一身份认证登录成功")
 
-	// 执行签到
+	// 5. 持久化新 cookie（登录成功后 jar 中已有 CAS + qfhy 的完整 session）
+	if err := saveCookiesToSchedule(s.TaskRepo, schedule, jar.Snapshot()); err != nil {
+		warn("保存 session 失败: " + err.Error())
+	}
+
+	// 6. 执行签到
 	if err := s.doCheckIn(ctx, loc); err != nil {
 		return fmt.Errorf("签到失败: %w", err)
 	}
@@ -102,18 +124,19 @@ func (s SignInService) Stop(scheduleId uint) error {
 	return nil
 }
 
-func (s SignInService) loadConfig(scheduleId uint) (cfg signInConfig, err error) {
+func (s SignInService) loadScheduleAndConfig(scheduleId uint) (*model.TaskSchedule, signInConfig, error) {
 	schedule, err := s.TaskRepo.GetTaskScheduleById(scheduleId)
 	if err != nil {
-		return cfg, errors.New("获取任务配置失败")
+		return nil, signInConfig{}, errors.New("获取任务配置失败")
 	}
+	var cfg signInConfig
 	if err = json.Unmarshal([]byte(schedule.Config), &cfg); err != nil {
-		return cfg, errors.New("解析任务配置失败")
+		return nil, signInConfig{}, errors.New("解析任务配置失败")
 	}
 	cfg.Account = strings.TrimSpace(cfg.Account)
 	cfg.Password = strings.TrimSpace(cfg.Password)
 	cfg.Local = strings.TrimSpace(cfg.Local)
-	return cfg, nil
+	return schedule, cfg, nil
 }
 
 func (s SignInService) loginWithRetry(ctx context.Context, cfg signInConfig) error {

@@ -61,6 +61,12 @@ func (t *TaskRepository) CreateTaskSchedule(task *model.TaskSchedule) error {
 func (t *TaskRepository) UpdateTaskSchedule(task *model.TaskSchedule) error {
 	return t.Db.Save(task).Error
 }
+
+// UpdateScheduleNextRunTime 只刷新 next_run_time 字段, 避免和业务侧 Config 更新冲突.
+func (t *TaskRepository) UpdateScheduleNextRunTime(id uint, nextTime time.Time) error {
+	return t.Db.Model(&model.TaskSchedule{}).Where("id = ?", id).
+		Update("next_run_time", nextTime).Error
+}
 func (t *TaskRepository) DeleteTaskSchedule(id uint) error {
 	return t.Db.Delete(&model.TaskSchedule{}, id).Error
 }
