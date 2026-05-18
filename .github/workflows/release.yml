@@ -33,10 +33,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install MinGW-w64 (CGO dependency)
-        run: |
-          choco install mingw -y --no-progress
-          $mingwPath = (Get-ChildItem -Path "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" -Filter "gcc.exe" -Recurse | Select-Object -First 1).DirectoryName
-          echo "$mingwPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        run: choco install mingw -y --no-progress
         shell: pwsh
 
       - name: Verify toolchain
