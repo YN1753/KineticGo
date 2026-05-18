@@ -7,3 +7,6 @@ data
 build
 kineticgo.db
 web/dist
+internal/ocr/libs/*.dll
+internal/ocr/libs/*.dylib
+internal/ocr/libs/*.so

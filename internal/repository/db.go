@@ -121,6 +121,17 @@ func InitTaskTemplates() []model.Task {
 			ExecMode: "both",
 		},
 		{
+			Type:        "652_signin",
+			Name:        "652 自动签到",
+			Description: "CAS 统一身份认证自动登录并提交签到定位",
+			Config: model.TempleConfig(`[
+				{"field": "account", "label": "学工号", "input_type": "text", "placeholder": "请输入学工号"},
+				{"field": "password", "label": "密码", "input_type": "password", "placeholder": "请输入密码"},
+				{"field": "local", "label": "校区", "input_type": "select", "options": [{"value": "宜宾", "label": "宜宾"}, {"value": "李白河", "label": "李白河"}, {"value": "汇东", "label": "汇东"}]}
+			]`),
+			ExecMode: "both",
+		},
+		{
 			Type:        "load_test",
 			Name:        "性能压测",
 			Description: "对指定目标进行高并发HTTP压力测试",

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import { Cpu, MemoryStick, Activity, ArrowUp, ArrowDown, Plus, X, ScrollText, Wifi, Zap, Radar, Terminal, Clock, Hand } from 'lucide-vue-next'
+import { Cpu, MemoryStick, Activity, ArrowUp, ArrowDown, Plus, X, ScrollText, Wifi, Zap, Radar, Terminal, Clock, Hand, ClipboardCheck } from 'lucide-vue-next'
 import { useSystemStats } from '../composables/useSystemStats'
 import { useTaskApi } from '../composables/useTaskApi'
 import TaskCard from './TaskCard.vue'
@@ -18,6 +18,7 @@ const configForm = ref(null)
 
 const typeIcons = {
   campus_auth: Wifi,
+  '652_signin': ClipboardCheck,
   load_test: Zap,
   net_radar: Radar,
   port_killer: Terminal,

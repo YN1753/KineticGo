@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { Play, Square, Settings, X, Wifi, Zap, Radar, Terminal, ScrollText, Clock } from 'lucide-vue-next'
+import { Play, Square, Settings, X, Wifi, Zap, Radar, Terminal, ScrollText, Clock, ClipboardCheck } from 'lucide-vue-next'
 import { eventsOn } from '../composables/useWailsRuntime'
 
 const runningGlow = 'shadow-[0_0_24px_rgba(16,185,129,0.18)]'
@@ -15,6 +15,7 @@ const emit = defineEmits(['run', 'stop', 'edit', 'delete'])
 
 const typeIcons = {
   campus_auth: Wifi,
+  '652_signin': ClipboardCheck,
   load_test: Zap,
   net_radar: Radar,
   port_killer: Terminal,

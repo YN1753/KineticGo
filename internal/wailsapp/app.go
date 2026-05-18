@@ -28,6 +28,7 @@ func (a *App) OnStartup(ctx context.Context) {
 	a.taskManage.RegisterSystem("active_tasks", service.NewActiveTasksService)
 	a.taskManage.RegisterSystem("local_network", service.NewNetworkService)
 	a.taskManage.Register("campus_auth", service.NewSuseWifiService)
+	a.taskManage.Register("652_signin", service.NewSignInService)
 	a.taskManage.LoadEnabledCronSchedules()
 	go func() {
 		time.Sleep(1 * time.Second)

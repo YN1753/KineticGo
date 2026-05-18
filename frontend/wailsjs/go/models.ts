@@ -1,5 +1,5 @@
 export namespace model {
-
+	
 	export class Task {
 	    ID: number;
 	    Name: string;
@@ -9,11 +9,11 @@ export namespace model {
 	    Config: string;
 	    // Go type: time
 	    CreatedAt: any;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Task(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
@@ -24,7 +24,7 @@ export namespace model {
 	        this.Config = source["Config"];
 	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -53,11 +53,11 @@ export namespace model {
 	    StartTime: any;
 	    // Go type: time
 	    EndTime: any;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new TaskExecution(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
@@ -68,7 +68,7 @@ export namespace model {
 	        this.StartTime = this.convertValues(source["StartTime"], null);
 	        this.EndTime = this.convertValues(source["EndTime"], null);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -94,11 +94,11 @@ export namespace model {
 	    Message: string;
 	    // Go type: time
 	    CreatedAt: any;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new TaskLog(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
@@ -107,7 +107,7 @@ export namespace model {
 	        this.Message = source["Message"];
 	        this.CreatedAt = this.convertValues(source["CreatedAt"], null);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -136,11 +136,11 @@ export namespace model {
 	    // Go type: time
 	    NextRunTime: any;
 	    Config: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new TaskSchedule(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ID = source["ID"];
@@ -152,7 +152,7 @@ export namespace model {
 	        this.NextRunTime = this.convertValues(source["NextRunTime"], null);
 	        this.Config = source["Config"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -171,25 +171,31 @@ export namespace model {
 		    return a;
 		}
 	}
-	export class UpdateInfo {
-	    HasUpdate: boolean;
-	    CurrentVer: string;
-	    LatestVer: string;
-	    ReleaseNotes: string;
-	    DownloadURL: string;
 
+}
+
+export namespace service {
+	
+	export class UpdateInfo {
+	    hasUpdate: boolean;
+	    currentVersion: string;
+	    latestVersion: string;
+	    releaseNotes: string;
+	    downloadUrl: string;
+	
 	    static createFrom(source: any = {}) {
 	        return new UpdateInfo(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.HasUpdate = source["HasUpdate"];
-	        this.CurrentVer = source["CurrentVer"];
-	        this.LatestVer = source["LatestVer"];
-	        this.ReleaseNotes = source["ReleaseNotes"];
-	        this.DownloadURL = source["DownloadURL"];
+	        this.hasUpdate = source["hasUpdate"];
+	        this.currentVersion = source["currentVersion"];
+	        this.latestVersion = source["latestVersion"];
+	        this.releaseNotes = source["releaseNotes"];
+	        this.downloadUrl = source["downloadUrl"];
 	    }
 	}
 
 }
+
