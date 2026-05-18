@@ -23,6 +23,10 @@ func NewApp(taskManage *service.TaskManageService) *App {
 func (a *App) OnStartup(ctx context.Context) {
 	a.ctx = ctx
 	a.taskManage.SetRootCtx(ctx)
+
+	// 启动日志前端推送消费 goroutine（串行化 + 节流，避免 macOS 高频 EventsEmit 被杀）
+	service.StartLogEmitter()
+
 	a.taskManage.RegisterSystem("local_cpu", service.NewCpuService)
 	a.taskManage.RegisterSystem("local_memory", service.NewMemeryService)
 	a.taskManage.RegisterSystem("active_tasks", service.NewActiveTasksService)
@@ -38,6 +42,7 @@ func (a *App) OnStartup(ctx context.Context) {
 
 func (a *App) OnShutdown(ctx context.Context) {
 	a.taskManage.Shutdown()
+	service.StopLogEmitter()
 }
 
 func (a *App) GetTaskList() ([]model.Task, error) {

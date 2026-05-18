@@ -24,11 +24,8 @@ import (
 
 const (
 	signInUserAgent = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+	casLoginURL     = "https://uias.suse.edu.cn/sso/login?service=https%3A%2F%2Fqfhy.suse.edu.cn%2Fsite%2Fappware%2Fsystem%2Fsso%2Flogin%3Ftarget%3Dhttps%3A%2F%2Fqfhy.suse.edu.cn%2Fxg%2Fapp%2Fqddk%2Fadmin%2Fqddkdk"
 
-	// CAS 登录页,service 参数指向 qfhy 的 SSO 回调
-	casLoginURL = "https://uias.suse.edu.cn/sso/login?service=https%3A%2F%2Fqfhy.suse.edu.cn%2Fsite%2Fappware%2Fsystem%2Fsso%2Flogin%3Ftarget%3Dhttps%3A%2F%2Fqfhy.suse.edu.cn%2Fxg%2Fapp%2Fqddk%2Fadmin%2Fqddkdk"
-
-	// 学校硬编码 RSA 参数
 	rsaModulusHex  = "008aed7e057fe8f14c73550b0e6467b023616ddc8fa91846d2613cdb7f7621e3cada4cd5d812d627af6b87727ade4e26d26208b7326815941492b2204c3167ab2d53df1e3a2c9153bdb7c8c2e968df97a5e7e01cc410f92c4c2c2fba529b3ee988ebc1fca99ff5119e036d732c368acf8beba01aa2fdafa45b21e4de4928d0d403"
 	rsaExponentHex = "010001"
 	rsaChunkSize   = 126
