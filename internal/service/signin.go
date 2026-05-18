@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"kineticgo/pkg/location"
 	"math/big"
 	"net/http"
 	"net/http/cookiejar"
@@ -41,31 +42,6 @@ const (
 	taskListURL = "https://qfhy.suse.edu.cn/site/qddk/qdrw/api/myList.rst"
 )
 
-type campusLocation struct {
-	Coords  string // JSON 坐标字符串
-	Address string // 纯文本地址
-}
-
-// 校区位置库,键对应前端 local 下拉选项的 value.
-var campusLocations = map[string]campusLocation{
-	"宜宾": {
-		Coords:  `{"point":[104.678670,28.811231],"address":"四川省宜宾市翠屏区临港经济技术开发区大学城四川轻化工大学"}`,
-		Address: "四川省宜宾市翠屏区临港经济技术开发区大学城四川轻化工大学",
-	},
-	"宜宾1": {
-		Coords:  `{"point": [104.674665, 28.811231], "address": "四川省宜宾市翠屏区白沙湾街道大学路四川轻化工大学宜宾校区"}`,
-		Address: "四川省宜宾市翠屏区白沙湾街道大学路四川轻化工大学宜宾校区",
-	},
-	"李白河": {
-		Coords:  `{"point": [104.829171, 29.377728], "address": "四川省自贡市大安区大山铺镇四川轻化工大学李白河校区艺雅苑"}`,
-		Address: "四川省自贡市大安区大山铺镇四川轻化工大学李白河校区艺雅苑",
-	},
-	"汇东": {
-		Coords:  `{"point": [104.763952, 29.330347], "address": "四川省自贡市自流井区学苑街道汇雅路15号四川轻化工大学汇东校区"}`,
-		Address: "四川省自贡市自流井区学苑街道汇雅路15号四川轻化工大学汇东校区",
-	},
-}
-
 type signInConfig struct {
 	Account  string `json:"account"`
 	Password string `json:"password"`
@@ -99,7 +75,7 @@ func (s SignInService) Run(ctx context.Context, scheduleId uint) error {
 	if cfg.Local == "" {
 		return errors.New("未选择校区")
 	}
-	loc, ok := campusLocations[cfg.Local]
+	loc, ok := location.GetRandom(cfg.Local)
 	if !ok {
 		return fmt.Errorf("未知校区: %s", cfg.Local)
 	}
@@ -254,7 +230,7 @@ func (s SignInService) tryLogin(ctx context.Context, cfg signInConfig) error {
 }
 
 // doCheckIn 执行签到定位提交.
-func (s SignInService) doCheckIn(ctx context.Context, loc campusLocation) error {
+func (s SignInService) doCheckIn(ctx context.Context, loc location.SignInLocation) error {
 	info := func(msg string) { TaskLog(ctx, LogInfo, msg) }
 
 	// 会话预热
@@ -278,16 +254,13 @@ func (s SignInService) doCheckIn(ctx context.Context, loc campusLocation) error 
 	}
 	info(fmt.Sprintf("获取任务: qdrwId=%v, qdxxId=%v", qdrwId, qdxxId))
 
-	// 组装 Payload
-	payload := map[string]any{
-		"id":       qdxxId,
-		"qdzt":     1,
-		"qdsj":     time.Now().Format("2006-01-02 15:04:05"),
-		"isOuted":  0,
-		"isLated":  0,
-		"qdddjtdz": loc.Address,
-		"location": loc.Coords,
-	}
+	// 组装 Payload: 从 location 包获取基础数据,再补充任务相关字段
+	payload := loc.ToPayload()
+	payload["id"] = qdxxId
+	payload["qdzt"] = 1
+	payload["qdsj"] = time.Now().Format("2006-01-02 15:04:05")
+	payload["isOuted"] = 0
+	payload["isLated"] = 0
 
 	jsonBytes, err := json.Marshal(payload)
 	if err != nil {
