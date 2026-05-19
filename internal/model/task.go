@@ -27,6 +27,7 @@ type TaskSchedule struct {
 	IntervalSecs int       `gorm:"column:interval_secs"`
 	IsEnabled    bool      `gorm:"column:is_enabled;default:true"`
 	NextRunTime  time.Time `gorm:"column:next_run_time;index"`
+	Option       string    `gorm:"column:option;size:255"` // 备注字段
 
 	Config TempleConfig `gorm:"column:config;type:text"`
 }

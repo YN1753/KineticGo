@@ -134,6 +134,7 @@ function handleStop() {
       </div>
       <div class="min-w-0 flex-1 pr-6">
         <div class="font-semibold text-sm text-dark-text truncate">{{ schedule.Name }}</div>
+        <div v-if="schedule.Option" class="text-[11px] text-dark-muted/60 truncate mt-0.5">{{ schedule.Option }}</div>
         <div class="flex items-center gap-2 mt-1">
           <span
             class="status-dot"

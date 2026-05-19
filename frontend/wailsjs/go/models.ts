@@ -135,6 +135,7 @@ export namespace model {
 	    IsEnabled: boolean;
 	    // Go type: time
 	    NextRunTime: any;
+	    Option: string;
 	    Config: string;
 	
 	    static createFrom(source: any = {}) {
@@ -150,6 +151,7 @@ export namespace model {
 	        this.IntervalSecs = source["IntervalSecs"];
 	        this.IsEnabled = source["IsEnabled"];
 	        this.NextRunTime = this.convertValues(source["NextRunTime"], null);
+	        this.Option = source["Option"];
 	        this.Config = source["Config"];
 	    }
 	

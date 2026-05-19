@@ -39,6 +39,7 @@ const scheduleToDelete = ref(null)
 const chosenExecMode = ref('manual')
 const lockExecMode = ref(false)
 const cronExpr = ref('')
+const taskOption = ref('')
 const cronError = ref('')
 
 const CRON_PRESETS = [
@@ -109,6 +110,7 @@ async function editConfig(schedule) {
   cronError.value = ''
   chosenExecMode.value = fresh.CronExpr ? 'schedule' : 'manual'
   lockExecMode.value = true
+  taskOption.value = fresh.Option || ''
 
   showConfig.value = true
 }
@@ -128,6 +130,7 @@ async function submitConfig() {
       ...editingSchedule.value,
       Config: JSON.stringify(values),
       CronExpr: cronToSend,
+      Option: taskOption.value.trim(),
     })
   } else {
     await createSchedule({
@@ -136,6 +139,7 @@ async function submitConfig() {
       Config: JSON.stringify(values),
       CronExpr: cronToSend,
       IsEnabled: true,
+      Option: taskOption.value.trim(),
     })
   }
   closeConfig()
@@ -149,6 +153,7 @@ function closeConfig() {
   chosenExecMode.value = 'manual'
   lockExecMode.value = false
   editingSchedule.value = null
+  taskOption.value = ''
 }
 
 function selectExecMode(mode) {
@@ -342,6 +347,17 @@ onUnmounted(() => {
             <div class="flex items-center gap-2 text-sm">
               <span class="text-dark-muted">任务</span>
               <span class="text-dark-text font-medium px-2 py-0.5 rounded-lg bg-black/[0.04]">{{ selectedTask?.Name }}</span>
+            </div>
+
+            <!-- 备注 -->
+            <div class="space-y-1.5">
+              <label class="block text-xs font-medium text-dark-muted uppercase tracking-wider">备注</label>
+              <input
+                v-model="taskOption"
+                type="text"
+                placeholder="选填，用于标记任务用途"
+                class="w-full px-3.5 py-2.5 bg-black/[0.03] border border-dark-border rounded-xl text-sm text-dark-text placeholder-dark-muted/60 focus:outline-none focus:border-accent-blue/50 focus:ring-1 focus:ring-accent-blue/20 transition-all"
+              />
             </div>
 
             <!-- 执行方式切换 -->
