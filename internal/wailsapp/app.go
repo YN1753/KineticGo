@@ -58,11 +58,7 @@ func (a *App) GetTaskConfigById(id uint) (json.RawMessage, error) {
 }
 
 func (a *App) GetTaskScheduleList() ([]model.TaskSchedule, error) {
-	list, err := a.taskManage.GetTaskScheduleList()
-	if err != nil {
-		return nil, err
-	}
-	return *list, nil
+	return a.taskManage.GetTaskScheduleList()
 }
 
 func (a *App) CreateTaskSchedule(task model.TaskSchedule) error {
@@ -103,6 +99,23 @@ func (a *App) GetTaskLogsByExecution(execId uint) ([]model.TaskLog, error) {
 
 func (a *App) GetVersion() string {
 	return service.Version
+}
+
+func (a *App) GetSystemTaskScheduleList() ([]model.TaskSchedule, error) {
+	return a.taskManage.GetSystemTaskScheduleList()
+}
+
+func (a *App) EnableSystemTask(scheduleID uint) error {
+	err := a.taskManage.Start(a.ctx, scheduleID)
+	if err != nil {
+		return err
+	}
+	return a.taskManage.GetTaskRepo().ChangeSystemTaskStatus(true, scheduleID)
+}
+
+func (a *App) DisableSystemTask(scheduleID uint) error {
+	_ = a.taskManage.Stop(scheduleID)
+	return a.taskManage.GetTaskRepo().ChangeSystemTaskStatus(false, scheduleID)
 }
 
 func (a *App) CheckUpdate() (*service.UpdateInfo, error) {

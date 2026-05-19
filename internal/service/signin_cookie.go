@@ -24,11 +24,6 @@ type cookieEntry struct {
 	HttpOnly bool      `json:"httpOnly"`
 }
 
-// PersistentJar 包装标准 cookiejar.Jar,在 SetCookies 时额外记录完整 cookie 元数据
-// (Domain, Path, Expires 等),弥补标准 cookiejar.Cookies() 只返回 Name/Value 的限制.
-//
-// 标准库为什么不给完整字段:因为它的 Cookies(u) 只用于拼 HTTP Request 的 Cookie header,
-// header 里也确实只需要 Name=Value. 但对于"导出→序列化→下次导入"这种持久化场景就不够用.
 type PersistentJar struct {
 	inner http.CookieJar
 	// raw 按 "domain|path|name" 做主键去重,保留完整 cookie 信息

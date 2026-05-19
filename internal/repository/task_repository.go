@@ -40,12 +40,24 @@ func (t *TaskRepository) GetTaskList() (*[]model.Task, error) {
 
 func (t *TaskRepository) GetTaskScheduleList() (*[]model.TaskSchedule, error) {
 	var taskSchedules []model.TaskSchedule
-	err := t.Db.Model(&model.TaskSchedule{}).Find(&taskSchedules).Error
+	err := t.Db.Model(&model.TaskSchedule{}).Where("task_type NOT LIKE ?", "system-%").Find(&taskSchedules).Error
 	if err != nil {
 		return nil, errors.New("获取taskSchedule列表失败")
 	}
 	return &taskSchedules, nil
 }
+func (t *TaskRepository) GetSystemTaskScheduleList() (*[]model.TaskSchedule, error) {
+	var taskSchedules []model.TaskSchedule
+	err := t.Db.Model(&model.TaskSchedule{}).Where("task_type LIKE ?", "system-%").Find(&taskSchedules).Error
+	if err != nil {
+		return nil, errors.New("获取taskSchedule列表失败")
+	}
+	return &taskSchedules, nil
+}
+func (t *TaskRepository) ChangeSystemTaskStatus(enable bool, scheduleId uint) error {
+	return t.Db.Model(&model.TaskSchedule{}).Where("id = ?", scheduleId).Update("is_enabled", enable).Error
+}
+
 func (t *TaskRepository) GetTaskConfigById(id uint) (json.RawMessage, error) {
 	var task model.Task
 	err := t.Db.Model(&model.Task{}).Where("id = ? ", id).Find(&task).Error

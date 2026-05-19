@@ -221,8 +221,12 @@ func (t *TaskManageService) GetTaskConfigById(id uint) (json.RawMessage, error) 
 	return t.TaskRepo.GetTaskConfigById(id)
 }
 
-func (t *TaskManageService) GetTaskScheduleList() (*[]model.TaskSchedule, error) {
-	return t.TaskRepo.GetTaskScheduleList()
+func (t *TaskManageService) GetTaskScheduleList() ([]model.TaskSchedule, error) {
+	list, err := t.TaskRepo.GetTaskScheduleList()
+	if err != nil {
+		return nil, err
+	}
+	return *list, nil
 }
 
 func prepareCron(sch *model.TaskSchedule) error { //检验cron合法性并且算出下次时间
@@ -281,4 +285,16 @@ func (t *TaskManageService) GetTaskExecutions(limit int) ([]model.TaskExecution,
 
 func (t *TaskManageService) GetTaskLogsByExecution(execId uint) ([]model.TaskLog, error) {
 	return t.TaskRepo.GetTaskLogsByExecution(execId)
+}
+
+func (t *TaskManageService) GetSystemTaskScheduleList() ([]model.TaskSchedule, error) {
+	list, err := t.TaskRepo.GetSystemTaskScheduleList()
+	if err != nil {
+		return nil, err
+	}
+	return *list, nil
+}
+
+func (t *TaskManageService) GetTaskRepo() *repository.TaskRepository {
+	return t.TaskRepo
 }

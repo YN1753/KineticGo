@@ -12,7 +12,13 @@ export function CreateTaskSchedule(arg1:model.TaskSchedule):Promise<void>;
 
 export function DeleteTaskSchedule(arg1:number):Promise<void>;
 
+export function DisableSystemTask(arg1:number):Promise<void>;
+
+export function EnableSystemTask(arg1:number):Promise<void>;
+
 export function GetRunningTaskIds():Promise<Array<number>>;
+
+export function GetSystemTaskScheduleList():Promise<Array<model.TaskSchedule>>;
 
 export function GetTaskConfigById(arg1:number):Promise<json.RawMessage>;
 

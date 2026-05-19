@@ -18,8 +18,20 @@ export function DeleteTaskSchedule(arg1) {
   return window['go']['wailsapp']['App']['DeleteTaskSchedule'](arg1);
 }
 
+export function DisableSystemTask(arg1) {
+  return window['go']['wailsapp']['App']['DisableSystemTask'](arg1);
+}
+
+export function EnableSystemTask(arg1) {
+  return window['go']['wailsapp']['App']['EnableSystemTask'](arg1);
+}
+
 export function GetRunningTaskIds() {
   return window['go']['wailsapp']['App']['GetRunningTaskIds']();
+}
+
+export function GetSystemTaskScheduleList() {
+  return window['go']['wailsapp']['App']['GetSystemTaskScheduleList']();
 }
 
 export function GetTaskConfigById(arg1) {

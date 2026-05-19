@@ -1,12 +1,12 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import {
   Settings, Info, Gift, RefreshCw, CheckCircle, XCircle, Loader2,
-  Download, ExternalLink, X, AlertCircle
+  Download, ExternalLink, X, AlertCircle, ChevronDown, ChevronRight, Cpu, MemoryStick, Wifi, Activity
 } from 'lucide-vue-next'
 import { useTaskApi } from '../composables/useTaskApi'
 
-const { getVersion, checkUpdate, applyUpdate } = useTaskApi()
+const { getVersion, checkUpdate, applyUpdate, fetchSystemTaskScheduleList, enableSystemTask, disableSystemTask, runningIds, fetchRunningIds } = useTaskApi()
 
 const appInfo = ref({
   name: 'KineticGo',
@@ -120,7 +120,53 @@ async function redeem() {
   redeeming.value = false
 }
 
-onMounted(fetchVersion)
+onMounted(async () => {
+  fetchVersion()
+  await fetchSystemTasks()
+  await fetchRunningIds()
+  pollTimer = setInterval(fetchRunningIds, 2000)
+})
+
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
+})
+
+// 系统任务
+const systemTasksExpanded = ref(false)
+const systemTaskList = ref([])
+const systemTasksLoading = ref(false)
+let pollTimer = null
+
+const systemTaskIcons = {
+  'system-local_cpu': Cpu,
+  'system-local_memory': MemoryStick,
+  'system-local_network': Wifi,
+  'system-active_tasks': Activity,
+}
+
+async function fetchSystemTasks() {
+  systemTasksLoading.value = true
+  try {
+    systemTaskList.value = await fetchSystemTaskScheduleList()
+  } finally {
+    systemTasksLoading.value = false
+  }
+}
+
+async function toggleSystemTask(task) {
+  const isRunning = runningIds.value.has(task.ID)
+  if (isRunning) {
+    await disableSystemTask(task.ID)
+  } else {
+    await enableSystemTask(task.ID)
+  }
+  await fetchRunningIds()
+  await fetchSystemTasks()
+}
+
+function isSystemTaskRunning(taskId) {
+  return runningIds.value.has(taskId)
+}
 </script>
 
 <template>
@@ -214,6 +260,52 @@ onMounted(fetchVersion)
             <RefreshCw v-else :size="16" />
             {{ updateStatus.checking ? '检测中...' : '检查更新' }}
           </button>
+        </div>
+      </div>
+
+      <!-- 系统任务 -->
+      <div class="glass-panel p-6">
+        <button
+          @click="systemTasksExpanded = !systemTasksExpanded"
+          class="w-full flex items-center gap-3 mb-4"
+        >
+          <div class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-black/[0.04]">
+            <Cpu :size="20" class="text-dark-muted" />
+          </div>
+          <div class="flex-1 text-left">
+            <h2 class="text-sm font-medium">系统任务</h2>
+            <p class="text-xs text-dark-muted">System Tasks</p>
+          </div>
+          <component :is="systemTasksExpanded ? ChevronDown : ChevronRight" :size="18" class="text-dark-muted" />
+        </button>
+
+        <div v-if="systemTasksExpanded" class="space-y-3">
+          <div v-if="systemTasksLoading" class="py-4 text-center text-dark-muted text-sm">加载中...</div>
+          <div v-else-if="systemTaskList.length === 0" class="py-4 text-center text-dark-muted text-sm">暂无系统任务</div>
+          <div
+            v-for="task in systemTaskList"
+            :key="task.ID"
+            class="flex items-center justify-between p-4 rounded-xl bg-black/[0.03] border border-dark-border/60"
+          >
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-black/[0.04] flex items-center justify-center">
+                <component :is="systemTaskIcons[task.TaskType] || Settings" :size="16" class="text-dark-muted" />
+              </div>
+              <div>
+                <div class="text-sm font-medium text-dark-text">{{ task.Name }}</div>
+                <div class="text-xs text-dark-muted">{{ task.TaskType }}</div>
+              </div>
+            </div>
+            <button
+              @click="toggleSystemTask(task)"
+              class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+              :class="isSystemTaskRunning(task.ID)
+                ? 'bg-accent-red/20 text-accent-red hover:bg-accent-red/30'
+                : 'bg-accent-green/20 text-accent-green hover:bg-accent-green/30'"
+            >
+              {{ isSystemTaskRunning(task.ID) ? '停止' : '启动' }}
+            </button>
+          </div>
         </div>
       </div>
 

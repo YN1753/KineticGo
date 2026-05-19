@@ -140,6 +140,34 @@ export function useTaskApi() {
     return await app.ApplyUpdate(url)
   }
 
+  async function fetchSystemTaskScheduleList() {
+    try {
+      const app = await getApp()
+      return await app.GetSystemTaskScheduleList()
+    } catch {
+      console.warn('[mock] GetSystemTaskScheduleList')
+      return []
+    }
+  }
+
+  async function enableSystemTask(scheduleID) {
+    try {
+      const app = await getApp()
+      await app.EnableSystemTask(scheduleID)
+    } catch (e) {
+      console.warn('[mock] EnableSystemTask', scheduleID, e)
+    }
+  }
+
+  async function disableSystemTask(scheduleID) {
+    try {
+      const app = await getApp()
+      await app.DisableSystemTask(scheduleID)
+    } catch (e) {
+      console.warn('[mock] DisableSystemTask', scheduleID, e)
+    }
+  }
+
   return {
     taskList, scheduleList, runningIds, loading,
     fetchTaskList, fetchTaskConfig, fetchScheduleList, fetchScheduleById,
@@ -147,5 +175,6 @@ export function useTaskApi() {
     runTask, stopTask, fetchRunningIds,
     fetchExecutions, fetchLogsByExecution,
     getVersion, checkUpdate, applyUpdate,
+    fetchSystemTaskScheduleList, enableSystemTask, disableSystemTask,
   }
 }
