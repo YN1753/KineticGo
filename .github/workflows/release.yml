@@ -88,6 +88,12 @@ jobs:
           go version
           node --version
 
+      - name: Clean disk
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/local/share/boost /opt/homebrew/Cellar 2>/dev/null || true
+          go clean -cache
+          rm -rf ~/Library/Developer/Xcode/DerivedData/* 2>/dev/null || true
+
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
