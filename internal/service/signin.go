@@ -38,6 +38,9 @@ const (
 	taskListURL = "https://qfhy.suse.edu.cn/site/qddk/qdrw/api/myList.rst"
 )
 
+// errNoTask 当日没有可签到的任务（非错误，只是跳过签到流程）
+var errNoTask = errors.New("no sign-in task today")
+
 type signInConfig struct {
 	Account  string `json:"account"`
 	Password string `json:"password"`
@@ -80,7 +83,6 @@ func (s SignInService) Run(ctx context.Context, scheduleId uint) error {
 
 	info("开始 652 自动签到 — " + cfg.Local + "校区")
 
-	// 2. 创建干净的 HTTP client (用 PersistentJar 保留完整 cookie 元数据)
 	jar := NewPersistentJar()
 	s.client.Jar = jar
 
@@ -267,12 +269,19 @@ func (s SignInService) doCheckIn(ctx context.Context, loc location.SignInLocatio
 		}
 	}
 
-	// 拉取今日任务
+	// 拉取今日任务：先查待签到，如果没有则查已签到（实现重复签到）
 	qdrwId, qdxxId, err := s.fetchTaskIds(ctx)
 	if err != nil {
-		return err
+		// 没有待签到任务，查已签到列表作为兜底
+		info("今日无待签到任务，尝试从已签到记录中获取任务ID")
+		qdrwId, qdxxId, err = s.fetchTaskIdsFromHistory(ctx)
+		if err != nil {
+			return fmt.Errorf("获取签到任务失败: %w", err)
+		}
+		info("从已签到记录中获取任务ID成功，将发起重复签到")
+	} else {
+		info(fmt.Sprintf("获取任务: qdrwId=%v, qdxxId=%v", qdrwId, qdxxId))
 	}
-	info(fmt.Sprintf("获取任务: qdrwId=%v, qdxxId=%v", qdrwId, qdxxId))
 
 	// 组装 Payload: 从 location 包获取基础数据,再补充任务相关字段
 	payload := loc.ToPayload()
@@ -310,53 +319,64 @@ func (s SignInService) doCheckIn(ctx context.Context, loc location.SignInLocatio
 
 // fetchTaskIds 从任务列表接口提取 qdrwId 和 qdxxId.
 func (s SignInService) fetchTaskIds(ctx context.Context) (qdrwId, qdxxId any, err error) {
-	find := func(status int) (any, any, bool) {
-		urlStr := fmt.Sprintf("%s?status=%d&pageSize=1&pageNumber=1", taskListURL, status)
-		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
-		setQfhyHeaders(req)
-
-		resp, e := s.client.Do(req)
-		if e != nil {
-			return nil, nil, false
-		}
-		defer resp.Body.Close()
-
-		var result struct {
-			Success bool `json:"success"`
-			Result  struct {
-				Data []map[string]any `json:"data"`
-			} `json:"result"`
-		}
-		if json.NewDecoder(resp.Body).Decode(&result) != nil || !result.Success || len(result.Result.Data) == 0 {
-			return nil, nil, false
-		}
-		item := result.Result.Data[0]
-
-		var rw, xx any
-		if v, ok := item["qdrwId"]; ok {
-			rw = v
-		} else if v, ok := item["rwId"]; ok {
-			rw = v
-		} else {
-			rw = item["id"]
-		}
-		if v, ok := item["qdxxId"]; ok {
-			xx = v
-		} else if v, ok := item["id"]; ok {
-			xx = v
-		}
-		return rw, xx, rw != nil && xx != nil
+	qdrwId, qdxxId, ok := s.findTaskByStatus(ctx, 1)
+	if ok {
+		return qdrwId, qdxxId, nil
 	}
+	// 查已签到作为兜底
+	qdrwId, qdxxId, ok = s.findTaskByStatus(ctx, 2)
+	if ok {
+		return qdrwId, qdxxId, nil
+	}
+	return nil, nil, errNoTask
+}
 
-	// 先查待签到(status=1)
-	if rw, xx, ok := find(1); ok {
-		return rw, xx, nil
+// fetchTaskIdsFromHistory 强制从已签到记录中获取任务ID（用于重复签到）。
+func (s SignInService) fetchTaskIdsFromHistory(ctx context.Context) (qdrwId, qdxxId any, err error) {
+	qdrwId, qdxxId, ok := s.findTaskByStatus(ctx, 2)
+	if ok {
+		return qdrwId, qdxxId, nil
 	}
-	//  fallback 查已签到(status=2)做时间覆盖
-	if rw, xx, ok := find(2); ok {
-		return rw, xx, nil
+	return nil, nil, errors.New("已签到记录中也没有任务")
+}
+
+// findTaskByStatus 根据 status 查询任务列表，返回第一个任务的 qdrwId 和 qdxxId.
+func (s SignInService) findTaskByStatus(ctx context.Context, status int) (qdrwId, qdxxId any, ok bool) {
+	urlStr := fmt.Sprintf("%s?status=%d&pageSize=1&pageNumber=1", taskListURL, status)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, urlStr, nil)
+	setQfhyHeaders(req)
+
+	resp, e := s.client.Do(req)
+	if e != nil {
+		return nil, nil, false
 	}
-	return nil, nil, errors.New("未找到今日签到任务")
+	defer resp.Body.Close()
+
+	var result struct {
+		Success bool `json:"success"`
+		Result  struct {
+			Data []map[string]any `json:"data"`
+		} `json:"result"`
+	}
+	if json.NewDecoder(resp.Body).Decode(&result) != nil || !result.Success || len(result.Result.Data) == 0 {
+		return nil, nil, false
+	}
+	item := result.Result.Data[0]
+
+	var rw, xx any
+	if v, ok := item["qdrwId"]; ok {
+		rw = v
+	} else if v, ok := item["rwId"]; ok {
+		rw = v
+	} else {
+		rw = item["id"]
+	}
+	if v, ok := item["qdxxId"]; ok {
+		xx = v
+	} else if v, ok := item["id"]; ok {
+		xx = v
+	}
+	return rw, xx, rw != nil && xx != nil
 }
 
 // setQfhyHeaders 设置 qfhy 后端接口的通用请求头.
