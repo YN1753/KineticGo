@@ -1,11 +1,29 @@
 package repository
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
+
 	"kineticgo/internal/model"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+func DbPath() string {
+	if runtime.GOOS == "darwin" {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			dir := filepath.Join(home, "Library", "Application Support", "KineticGo")
+			if err := os.MkdirAll(dir, 0755); err == nil {
+				return filepath.Join(dir, "kineticgo.db")
+			}
+			return filepath.Join(home, "kineticgo.db")
+		}
+	}
+	return "kineticgo.db"
+}
 
 func DbInit(path string) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})

@@ -10,7 +10,7 @@ import (
 
 func InitializeApp() *App {
 	wire.Build(
-		wire.Value("kineticgo.db"),
+		repository.DbPath,
 		repository.DbInit,
 		repository.NewTaskRepository,
 		service.NewTaskManageService,

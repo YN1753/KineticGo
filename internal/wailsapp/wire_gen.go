@@ -14,14 +14,10 @@ import (
 // Injectors from wire.go:
 
 func InitializeApp() *App {
-	string2 := _wireStringValue
+	string2 := repository.DbPath()
 	db := repository.DbInit(string2)
 	taskRepository := repository.NewTaskRepository(db)
 	taskManageService := service.NewTaskManageService(taskRepository)
 	app := NewApp(taskManageService)
 	return app
 }
-
-var (
-	_wireStringValue = "kineticgo.db"
-)
