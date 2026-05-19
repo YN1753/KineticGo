@@ -3,12 +3,10 @@ package service
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -53,19 +51,27 @@ func CheckUpdate() (*UpdateInfo, error) {
 		ReleaseNotes: gh.Body,
 	}
 
-	if gh.TagName == Version {
+	if Version == "dev" {
+		// dev 版本不参与版本比较
+		info.HasUpdate = false
+		return info, nil
+	}
+
+	if gh.TagName == Version || strings.TrimPrefix(gh.TagName, "v") == Version {
 		info.HasUpdate = false
 		return info, nil
 	}
 
 	info.HasUpdate = true
 
-	ext := "exe"
+	// 简化：直接返回浏览器下载链接，不做自动更新
+	// Windows -> .exe, macOS -> .dmg
+	ext := ".exe"
 	if runtime.GOOS == "darwin" {
-		ext = "zip"
+		ext = ".dmg"
 	}
 	for _, a := range gh.Assets {
-		if filepath.Ext(a.Name) == "."+ext {
+		if strings.HasSuffix(a.Name, ext) {
 			info.DownloadURL = a.URL
 			break
 		}
@@ -74,52 +80,17 @@ func CheckUpdate() (*UpdateInfo, error) {
 	return info, nil
 }
 
-// ApplyUpdate 执行更新
-// Windows：下载新 exe → 写批处理脚本 → 启动脚本 → 退出自身
-// macOS：返回错误提示手动下载
+// ApplyUpdate 直接打开浏览器下载页面，让用户手动下载安装
 func ApplyUpdate(downloadURL string) error {
-	if runtime.GOOS == "darwin" {
-		return fmt.Errorf("macOS 暂不支持自动更新，请前往 Release 页面手动下载：%s", downloadURL)
+	// 打开浏览器下载
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", downloadURL)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", downloadURL)
+	default:
+		cmd = exec.Command("xdg-open", downloadURL)
 	}
-
-	resp, err := http.Get(downloadURL)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	tmpExe := filepath.Join(os.TempDir(), "KineticGo_update.exe")
-	f, err := os.Create(tmpExe)
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(f, resp.Body)
-	f.Close()
-	if err != nil {
-		return err
-	}
-
-	currentExe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-
-	batPath := filepath.Join(os.TempDir(), "kineticgo_update.bat")
-	batContent := fmt.Sprintf(`@echo off
-timeout /t 2 /nobreak >nul
-move /Y "%s" "%s"
-start "" "%s"
-del "%%~f0"
-`, tmpExe, currentExe, currentExe)
-
-	if err := os.WriteFile(batPath, []byte(batContent), 0644); err != nil {
-		return err
-	}
-
-	cmd := exec.Command("cmd", "/c", batPath)
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	os.Exit(0)
-	return nil
+	return cmd.Start()
 }

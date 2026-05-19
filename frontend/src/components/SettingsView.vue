@@ -36,8 +36,6 @@ const updateInfo = ref(null)
 const updating = ref(false)
 const updateError = ref('')
 
-const isWindows = navigator.platform.toLowerCase().includes('win')
-
 async function fetchVersion() {
   try {
     const ver = await getVersion()
@@ -84,14 +82,8 @@ async function doApplyUpdate() {
   updateError.value = ''
   try {
     await applyUpdate(updateInfo.value.DownloadURL)
-    // Windows 成功会触发 os.Exit，不会走到这里
   } catch (e) {
-    // macOS 或其他错误：fallback 到浏览器打开
-    if (!isWindows) {
-      window.open(updateInfo.value.DownloadURL, '_blank')
-    } else {
-      updateError.value = e?.message || '更新失败，请手动下载'
-    }
+    updateError.value = e?.message || '打开下载页失败，请手动访问'
   } finally {
     updating.value = false
   }
@@ -375,7 +367,7 @@ function isSystemTaskRunning(taskId) {
               <span class="text-dark-muted">当前版本</span>
               <span class="text-dark-text font-medium">v{{ updateInfo?.CurrentVer }}</span>
               <span class="text-dark-muted/40">→</span>
-              <span class="text-accent-blue font-medium">v{{ updateInfo?.LatestVer }}</span>
+              <span class="text-accent-blue font-medium">{{ updateInfo?.LatestVer }}</span>
             </div>
 
             <div class="rounded-xl border border-dark-border bg-black/[0.02] overflow-hidden">
@@ -400,22 +392,13 @@ function isSystemTaskRunning(taskId) {
                 稍后再说
               </button>
               <button
-                v-if="isWindows"
                 @click="doApplyUpdate"
                 :disabled="updating || !updateInfo?.DownloadURL"
                 class="flex-1 py-2.5 bg-accent-blue hover:bg-accent-blue/90 text-white rounded-xl text-sm font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
-                <Loader2 v-if="updating" :size="14" class="animate-spin" />
-                <Download v-else :size="14" />
-                {{ updating ? '正在更新...' : '立即更新并重启' }}
-              </button>
-              <button
-                v-else
-                @click="window.open(updateInfo?.DownloadURL, '_blank')"
-                class="flex-1 py-2.5 bg-accent-blue hover:bg-accent-blue/90 text-white rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5"
-              >
-                <ExternalLink :size="14" />
-                前往下载页
+                <ExternalLink v-if="!updating" :size="14" />
+                <Loader2 v-else :size="14" class="animate-spin" />
+                {{ updating ? '正在打开...' : '前往下载页' }}
               </button>
             </div>
           </div>
