@@ -17,7 +17,7 @@ const currentView = computed(() => views[currentPage.value])
 </script>
 
 <template>
-  <div class="flex h-screen bg-dark-bg overflow-hidden">
+  <div class="flex h-screen bg-gray-50 overflow-hidden">
     <AppSidebar :current-page="currentPage" @navigate="currentPage = $event" />
     <main class="flex-1 overflow-y-auto">
       <component :is="currentView" />

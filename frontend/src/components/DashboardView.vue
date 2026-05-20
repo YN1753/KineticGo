@@ -1,8 +1,15 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { Cpu, MemoryStick, Activity, ArrowUp, ArrowDown, Plus, X, ScrollText, Wifi, Zap, Radar, Terminal, Clock, Hand, ClipboardCheck } from 'lucide-vue-next'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { 
+  Cpu, MemoryStick, Activity, ArrowUp, ArrowDown, Plus, X, 
+  ScrollText, Wifi, Zap, Radar, Terminal, Clock, Hand, 
+  ClipboardCheck, ChevronDown, ChevronRight, Search, Scan, 
+  Cpu as CpuIcon, Code, Terminal as ShellIcon, Database, 
+  BrainCircuit, AlertCircle, Info
+} from 'lucide-vue-next'
 import { useSystemStats } from '../composables/useSystemStats'
 import { useTaskApi } from '../composables/useTaskApi'
+import { eventsOn } from '../composables/useWailsRuntime'
 import TaskCard from './TaskCard.vue'
 import TaskConfigForm from './TaskConfigForm.vue'
 
@@ -35,297 +42,329 @@ const configInitial = ref({})
 const editingSchedule = ref(null)
 const scheduleToDelete = ref(null)
 
-// execution mode & cron
-const chosenExecMode = ref('manual')
-const lockExecMode = ref(false)
-const cronExpr = ref('')
-const taskOption = ref('')
-const cronError = ref('')
+const collapsedGroups = ref(new Set())
+const isLauncherCollapsed = ref(false)
+const isPortKillerCollapsed = ref(false)
 
-const CRON_PRESETS = [
-  { label: '每分钟', expr: '* * * * *' },
-  { label: '每 5 分钟', expr: '*/5 * * * *' },
-  { label: '每小时', expr: '0 * * * *' },
-  { label: '每天 9:00', expr: '0 9 * * *' },
-  { label: '每天 0:00', expr: '0 0 * * *' },
-  { label: '工作日 9:00', expr: '0 9 * * 1-5' },
-]
-
-async function openPicker() {
-  await fetchTaskList()
-  showPicker.value = true
-}
-
-async function selectTask(task) {
-  selectedTask.value = task
-  showPicker.value = false
-  const raw = await fetchTaskConfig(task.ID)
-  configFields.value = Array.isArray(raw) ? raw : []
-  configInitial.value = {}
-  editingSchedule.value = null
-
-  // 根据模板的 ExecMode 决定执行方式默认值与可切换性
-  const mode = task.ExecMode || 'manual'
-  if (mode === 'both') {
-    chosenExecMode.value = 'manual'
-    lockExecMode.value = false
+const toggleGroup = (type) => {
+  if (collapsedGroups.value.has(type)) {
+    collapsedGroups.value.delete(type)
   } else {
-    chosenExecMode.value = mode === 'schedule' ? 'schedule' : 'manual'
-    lockExecMode.value = true
+    collapsedGroups.value.add(type)
   }
-  cronExpr.value = ''
-  cronError.value = ''
-
-  showConfig.value = true
 }
 
-async function editConfig(schedule) {
-  // fetch fresh schedule data
-  const fresh = await fetchScheduleById(schedule.ID)
-  editingSchedule.value = fresh
+// 分组逻辑
+const groupedSchedules = computed(() => {
+  const groups = {}
+  scheduleList.value.forEach(s => {
+    const type = s.TaskType
+    if (!groups[type]) {
+      let template = taskList.value.find(t => t.Type === type)
+      if (!template && type.startsWith('system-')) {
+        const sysName = type.replace('system-', '')
+        template = taskList.value.find(t => t.Type === 'system' && t.Name === sysName)
+      }
+      groups[type] = {
+        type: type,
+        name: template?.Name || type,
+        icon: typeIcons[type] || (type.startsWith('system-') ? (type.includes('cpu') ? Cpu : type.includes('memory') ? MemoryStick : type.includes('network') ? Activity : ScrollText) : ScrollText),
+        schedules: []
+      }
+    }
+    groups[type].schedules.push(s)
+  })
+  return Object.values(groups)
+})
 
-  // find matching task template for config schema
+// --- Port Killer Mock ---
+const portSearch = ref('')
+const isScanning = ref(false)
+
+// --- App Launcher Mock ---
+const apps = ref([
+  { name: 'VS Code', path: 'Code.exe', icon: Code, color: 'text-blue-500' },
+  { name: 'GoLand', path: 'goland64.exe', icon: CpuIcon, color: 'text-cyan-500' },
+  { name: 'Terminal', path: 'PowerShell', icon: ShellIcon, color: 'text-indigo-500' },
+  { name: 'DBeaver', path: 'dbeaver.exe', icon: Database, color: 'text-blue-600' },
+  { name: 'Postman', path: 'postman.exe', icon: Zap, color: 'text-orange-500' },
+  { name: 'Chrome', path: 'chrome.exe', icon: Activity, color: 'text-green-500' },
+])
+
+// --- Centralized Logs ---
+const allLogs = ref([])
+const terminalRef = ref(null)
+const MAX_LOGS = 200
+let unsubscribeLogs = null
+
+function formatTime(unix) {
+  const d = unix ? new Date(unix * 1000) : new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+function appendGlobalLog(payload) {
+  const schedule = scheduleList.value.find(s => Number(s.ID) === Number(payload.scheduleId))
+  const tag = schedule ? `[${schedule.Name}${schedule.Option ? ' - ' + schedule.Option : ''}] ` : ''
+  allLogs.value.push({
+    time: formatTime(payload.time),
+    level: payload.level || 'info',
+    message: payload.message || '',
+    tag: tag,
+    scheduleId: payload.scheduleId
+  })
+  if (allLogs.value.length > MAX_LOGS) allLogs.value.shift()
+  nextTick(() => { if (terminalRef.value) terminalRef.value.scrollTop = terminalRef.value.scrollHeight })
+}
+
+// --- Logic methods ---
+async function openPicker() { await fetchTaskList(); showPicker.value = true }
+async function selectTask(task) {
+  selectedTask.value = task; showPicker.value = false
+  const raw = await fetchTaskConfig(task.ID); configFields.value = Array.isArray(raw) ? raw : []
+  configInitial.value = {}; editingSchedule.value = null
+  const mode = task.ExecMode || 'manual'
+  if (mode === 'both') { chosenExecMode.value = 'manual'; lockExecMode.value = false } 
+  else { chosenExecMode.value = mode === 'schedule' ? 'schedule' : 'manual'; lockExecMode.value = true }
+  cronExpr.value = ''; cronError.value = ''; showConfig.value = true
+}
+async function editConfig(schedule) {
+  const fresh = await fetchScheduleById(schedule.ID); editingSchedule.value = fresh
   if (taskList.value.length === 0) await fetchTaskList()
   const task = taskList.value.find(t => t.Type === fresh.TaskType)
   selectedTask.value = task || { ID: 0, Name: fresh.Name, Type: fresh.TaskType }
-
-  // get config schema from task template
-  if (task) {
-    const raw = await fetchTaskConfig(task.ID)
-    configFields.value = Array.isArray(raw) ? raw : []
-  } else {
-    configFields.value = []
-  }
-
-  try {
-    configInitial.value = typeof fresh.Config === 'string'
-      ? JSON.parse(fresh.Config)
-      : (fresh.Config || {})
-  } catch {
-    configInitial.value = {}
-  }
-
-  // 编辑时锁定执行模式，从现有数据恢复 cron
-  cronExpr.value = fresh.CronExpr || ''
-  cronError.value = ''
-  chosenExecMode.value = fresh.CronExpr ? 'schedule' : 'manual'
-  lockExecMode.value = true
-  taskOption.value = fresh.Option || ''
-
-  showConfig.value = true
+  if (task) { const raw = await fetchTaskConfig(task.ID); configFields.value = Array.isArray(raw) ? raw : [] }
+  else configFields.value = []
+  try { configInitial.value = typeof fresh.Config === 'string' ? JSON.parse(fresh.Config) : (fresh.Config || {}) } catch { configInitial.value = {} }
+  cronExpr.value = fresh.CronExpr || ''; cronError.value = ''
+  chosenExecMode.value = fresh.CronExpr ? 'schedule' : 'manual'; lockExecMode.value = true
+  taskOption.value = fresh.Option || ''; showConfig.value = true
 }
-
 async function submitConfig() {
-  cronError.value = ''
-  const isSchedule = chosenExecMode.value === 'schedule'
-  if (isSchedule && !cronExpr.value.trim()) {
-    cronError.value = '请填写 cron 表达式'
-    return
-  }
-  const values = configForm.value?.getValues() ?? {}
-  const cronToSend = isSchedule ? cronExpr.value.trim() : ''
-
-  if (editingSchedule.value) {
-    await updateSchedule({
-      ...editingSchedule.value,
-      Config: JSON.stringify(values),
-      CronExpr: cronToSend,
-      Option: taskOption.value.trim(),
-    })
-  } else {
-    await createSchedule({
-      Name: selectedTask.value.Name,
-      TaskType: selectedTask.value.Type,
-      Config: JSON.stringify(values),
-      CronExpr: cronToSend,
-      IsEnabled: true,
-      Option: taskOption.value.trim(),
-    })
-  }
-  closeConfig()
-  await fetchScheduleList()
+  cronError.value = ''; const isSchedule = chosenExecMode.value === 'schedule'
+  if (isSchedule && !cronExpr.value.trim()) { cronError.value = '请填写 cron 表达式'; return }
+  const values = configForm.value?.getValues() ?? {}; const cronToSend = isSchedule ? cronExpr.value.trim() : ''
+  if (editingSchedule.value) await updateSchedule({ ...editingSchedule.value, Config: JSON.stringify(values), CronExpr: cronToSend, Option: taskOption.value.trim() })
+  else await createSchedule({ Name: selectedTask.value.Name, TaskType: selectedTask.value.Type, Config: JSON.stringify(values), CronExpr: cronToSend, IsEnabled: true, Option: taskOption.value.trim() })
+  closeConfig(); await fetchScheduleList()
 }
-
-function closeConfig() {
-  showConfig.value = false
-  cronExpr.value = ''
-  cronError.value = ''
-  chosenExecMode.value = 'manual'
-  lockExecMode.value = false
-  editingSchedule.value = null
-  taskOption.value = ''
-}
-
-function selectExecMode(mode) {
-  if (lockExecMode.value && mode !== chosenExecMode.value) return
-  chosenExecMode.value = mode
-  cronError.value = ''
-}
-
-function applyCronPreset(expr) {
-  cronExpr.value = expr
-  cronError.value = ''
-}
-
-function confirmDelete(schedule) {
-  scheduleToDelete.value = schedule
-  showDeleteConfirm.value = true
-}
-
-async function doDelete() {
-  if (!scheduleToDelete.value) return
-  await deleteSchedule(scheduleToDelete.value.ID)
-  showDeleteConfirm.value = false
-  scheduleToDelete.value = null
-  await fetchScheduleList()
-}
-
-async function onRun(schedule) {
-  await runTask(schedule.ID)
-  await fetchRunningIds()
-}
-
-async function onStop(schedule) {
-  await stopTask(schedule.ID)
-  await fetchRunningIds()
-}
-
+function closeConfig() { showConfig.value = false; cronExpr.value = ''; cronError.value = ''; chosenExecMode.value = 'manual'; lockExecMode.value = false; editingSchedule.value = null; taskOption.value = '' }
+function selectExecMode(mode) { if (lockExecMode.value && mode !== chosenExecMode.value) return; chosenExecMode.value = mode; cronError.value = '' }
+function applyCronPreset(expr) { cronExpr.value = expr; cronError.value = '' }
+function confirmDelete(schedule) { scheduleToDelete.value = schedule; showDeleteConfirm.value = true }
+async function doDelete() { if (!scheduleToDelete.value) return; await deleteSchedule(scheduleToDelete.value.ID); showDeleteConfirm.value = false; scheduleToDelete.value = null; await fetchScheduleList() }
+async function onRun(schedule) { await runTask(schedule.ID); await fetchRunningIds() }
+async function onStop(schedule) { await stopTask(schedule.ID); await fetchRunningIds() }
 function formatSpeed(bytesPerSec) {
   const n = Number(bytesPerSec) || 0
   if (n < 1024) return n.toFixed(0) + ' b/s'
   if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' kb/s'
   return (n / (1024 * 1024)).toFixed(2) + ' MB/s'
 }
-
-function getExecMode(scheduleTaskType) {
-  if (!scheduleTaskType) return 'both'
-  if (scheduleTaskType.startsWith('system-')) {
-    const name = scheduleTaskType.substring('system-'.length)
-    return taskList.value.find(t => t.Type === 'system' && t.Name === name)?.ExecMode || 'both'
-  }
-  return taskList.value.find(t => t.Type === scheduleTaskType)?.ExecMode || 'both'
+function getExecMode(st) {
+  if (!st) return 'both'
+  if (st.startsWith('system-')) return taskList.value.find(t => t.Type === 'system' && t.Name === st.substring(7))?.ExecMode || 'both'
+  return taskList.value.find(t => t.Type === st)?.ExecMode || 'both'
 }
-
-function execModeLabel(mode) {
-  if (mode === 'manual') return '手动'
-  if (mode === 'schedule') return '定时'
-  return '手动+定时'
-}
+function execModeLabel(m) { return m === 'manual' ? '手动' : m === 'schedule' ? '定时' : '手动+定时' }
 
 let pollTimer = null
 onMounted(async () => {
-  await fetchTaskList()
-  await fetchScheduleList()
-  await fetchRunningIds()
-  pollTimer = setInterval(fetchRunningIds, 2000)
+  await fetchTaskList(); await fetchScheduleList(); await fetchRunningIds(); pollTimer = setInterval(fetchRunningIds, 2000)
+  unsubscribeLogs = await eventsOn('task_log', (payload) => { if (payload) appendGlobalLog(payload) })
 })
+onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); if (unsubscribeLogs) unsubscribeLogs() })
 
-onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
-})
+const chosenExecMode = ref('manual')
+const lockExecMode = ref(false)
+const cronExpr = ref('')
+const taskOption = ref('')
+const cronError = ref('')
 </script>
 
 <template>
-  <div class="min-h-full">
-    <!-- top stats bar -->
-    <div class="sticky top-0 z-30 bg-dark-bg/85 backdrop-blur-xl border-b border-dark-border">
-      <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-3 min-w-0 overflow-hidden">
-          <div class="flex items-center gap-2 text-sm shrink-0">
-            <Cpu :size="15" class="text-accent-blue shrink-0" :stroke-width="2" />
-            <span class="text-dark-muted shrink-0">CPU</span>
-            <span class="font-mono font-semibold text-dark-text tabular-nums w-14 text-right">{{ cpu.toFixed(1) }}%</span>
+  <div class="h-full bg-gray-50 text-gray-800 p-4 flex flex-col gap-4 overflow-hidden">
+    
+    <!-- Main Grid Content: 3 Columns -->
+    <div class="flex-1 grid grid-cols-12 gap-4 min-h-0">
+      
+      <!-- Column 1: Task Management (Responsive logic: becomes a header if collapsed on mobile) -->
+      <div class="col-span-12 lg:col-span-3 flex flex-col min-h-0">
+        <div class="flex items-center justify-between mb-2 px-1 shrink-0">
+          <h2 class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">任务实例</h2>
+          <button @click="openPicker" class="p-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all border border-blue-100 active:scale-95">
+            <Plus :size="14" :stroke-width="3" />
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-4 min-h-0">
+          <div v-if="loading" class="py-12 text-center text-gray-400 text-xs italic">Loading...</div>
+          <div v-else-if="groupedSchedules.length === 0" class="py-12 text-center bg-white rounded-2xl border border-dashed border-gray-200">
+            <p class="text-xs text-gray-300">暂无实例</p>
           </div>
-          <div class="w-px h-4 bg-dark-border shrink-0" />
-          <div class="flex items-center gap-2 text-sm shrink-0">
-            <MemoryStick :size="15" class="text-accent-cyan shrink-0" :stroke-width="2" />
-            <span class="text-dark-muted shrink-0">内存</span>
-            <span class="font-mono font-semibold text-dark-text tabular-nums w-14 text-right">{{ memory.toFixed(1) }}%</span>
-          </div>
-          <div class="w-px h-4 bg-dark-border shrink-0" />
-          <div class="flex items-center gap-2 text-sm shrink-0">
-            <Activity :size="15" class="text-accent-green shrink-0" :stroke-width="2" />
-            <span class="text-dark-muted shrink-0">活跃任务</span>
-            <span class="font-mono font-semibold text-dark-text tabular-nums w-6 text-right">{{ activeTasks }}</span>
-          </div>
-          <div class="w-px h-4 bg-dark-border shrink-0 hidden sm:block" />
-          <div class="hidden sm:flex items-center gap-3 text-sm shrink-0">
-            <div class="flex items-center gap-0.5 w-24 shrink-0">
-              <ArrowUp :size="13" class="text-accent-amber shrink-0" :stroke-width="2.5" />
-              <span class="font-mono text-dark-muted tabular-nums text-xs truncate min-w-0">{{ formatSpeed(netUp) }}</span>
+          <div v-else v-for="group in groupedSchedules" :key="group.type" class="space-y-2">
+            <div @click="toggleGroup(group.type)" class="flex items-center justify-between group cursor-pointer sticky top-0 bg-gray-50/95 backdrop-blur-sm py-1.5 z-10">
+              <div class="flex items-center gap-2">
+                <div class="p-1.5 rounded-lg bg-white shadow-sm border border-gray-100 text-gray-400 group-hover:text-blue-500 transition-colors">
+                  <component :is="group.icon" :size="14" />
+                </div>
+                <h3 class="text-[11px] font-bold text-gray-600">{{ group.name }}</h3>
+              </div>
+              <component :is="collapsedGroups.has(group.type) ? ChevronRight : ChevronDown" :size="12" class="text-gray-300" />
             </div>
-            <div class="flex items-center gap-0.5 w-24 shrink-0">
-              <ArrowDown :size="13" class="text-accent-cyan shrink-0" :stroke-width="2.5" />
-              <span class="font-mono text-dark-muted tabular-nums text-xs truncate min-w-0">{{ formatSpeed(netDown) }}</span>
+            <div v-if="!collapsedGroups.has(group.type)" class="grid grid-cols-1 gap-3 animate-fade-in pb-2">
+              <TaskCard v-for="s in group.schedules" :key="s.ID" :schedule="s" :exec-mode="getExecMode(s.TaskType)" :is-running="runningIds.has(s.ID)" @run="onRun" @stop="onStop" @edit="editConfig" @delete="confirmDelete" />
             </div>
           </div>
         </div>
-        <button
-          @click="openPicker"
-          class="flex items-center gap-2 px-4 py-2 bg-accent-blue hover:bg-accent-blue/90 text-white rounded-xl text-sm font-medium transition-all duration-200 active:scale-[0.97]"
-        >
-          <Plus :size="16" :stroke-width="2.5" />
-          添加任务
-        </button>
       </div>
-    </div>
 
-    <!-- content -->
-    <div class="max-w-7xl mx-auto px-6 py-6">
-      <div v-if="loading" class="py-24 text-center text-dark-muted text-sm">加载中...</div>
-
-      <div v-else-if="scheduleList.length === 0" class="py-24 text-center">
-        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-black/[0.03] mb-4">
-          <ScrollText :size="28" class="text-dark-muted/40" />
+      <!-- Column 2: App Launcher (Collapsible) -->
+      <div class="col-span-12 lg:col-span-6 flex flex-col min-h-0">
+        <div @click="isLauncherCollapsed = !isLauncherCollapsed" class="flex items-center justify-between mb-2 px-1 shrink-0 cursor-pointer group">
+          <h2 class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">应用启动舱</h2>
+          <component :is="isLauncherCollapsed ? ChevronRight : ChevronDown" :size="12" class="text-gray-300 group-hover:text-gray-600" />
         </div>
-        <div class="text-dark-muted text-sm mb-1">暂无任务</div>
-        <div class="text-dark-muted/60 text-xs">点击右上角「添加任务」开始</div>
+        
+        <div v-if="!isLauncherCollapsed" class="bg-white rounded-2xl border border-gray-200 p-5 flex flex-col flex-1 min-h-0 shadow-sm relative overflow-hidden animate-fade-in">
+          <div class="flex items-center justify-between mb-6 shrink-0">
+            <div class="flex items-center gap-3">
+              <div class="p-2.5 bg-cyan-50 rounded-xl text-cyan-600 shadow-sm border border-cyan-100">
+                <Zap :size="20" />
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-gray-800">本地应用快捷拉起</h3>
+                <p class="text-[10px] text-gray-400 mt-0.5 leading-relaxed">一键异步调起开发常用程序</p>
+              </div>
+            </div>
+            <button class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-1.5 rounded-xl text-[10px] font-bold shadow-md shadow-blue-100 active:scale-95 flex items-center gap-2">
+              <BrainCircuit :size="14" />
+              AI 编排
+            </button>
+          </div>
+          
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-4 overflow-y-auto custom-scrollbar pr-1 content-start flex-1">
+            <div v-for="app in apps" :key="app.name" class="p-4 bg-gray-50 border border-gray-100 rounded-2xl hover:border-blue-400/50 hover:bg-white hover:shadow-md transition-all cursor-pointer group flex flex-col items-center text-center gap-3">
+              <div class="p-3 rounded-2xl bg-white shadow-sm group-hover:scale-110 transition-transform shadow-inner" :class="app.color">
+                <component :is="app.icon" :size="22" />
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs font-bold text-gray-800 truncate">{{ app.name }}</div>
+                <div class="text-[9px] text-gray-400 font-mono truncate mt-0.5 opacity-60">{{ app.path }}</div>
+              </div>
+            </div>
+            <button class="aspect-square flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-100 rounded-2xl hover:bg-gray-50 text-gray-300 hover:text-gray-400 transition-colors">
+              <Plus :size="20" />
+              <span class="text-[10px] font-bold">新增入口</span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div v-else class="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
-        <TaskCard
-          v-for="s in scheduleList"
-          :key="s.ID"
-          :schedule="s"
-          :exec-mode="getExecMode(s.TaskType)"
-          :is-running="runningIds.has(s.ID)"
-          @run="onRun"
-          @stop="onStop"
-          @edit="editConfig"
-          @delete="confirmDelete"
-        />
+      <!-- Column 3: Port Killer (Collapsible) -->
+      <div class="col-span-12 lg:col-span-3 flex flex-col min-h-0">
+        <div @click="isPortKillerCollapsed = !isPortKillerCollapsed" class="flex items-center justify-between mb-2 px-1 shrink-0 cursor-pointer group">
+          <h2 class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">端口大盘</h2>
+          <component :is="isPortKillerCollapsed ? ChevronRight : ChevronDown" :size="12" class="text-gray-300 group-hover:text-gray-600" />
+        </div>
+        
+        <div v-if="!isPortKillerCollapsed" class="bg-white rounded-2xl border border-gray-200 p-5 flex flex-col flex-1 min-h-0 shadow-sm animate-fade-in">
+          <div class="flex items-center gap-3 mb-5 shrink-0">
+            <div class="p-2 bg-blue-50 rounded-xl text-blue-600 shadow-sm border border-blue-100">
+              <AlertCircle :size="18" />
+            </div>
+            <div class="text-xs font-bold text-gray-800">端口扫描</div>
+          </div>
+          
+          <div class="relative mb-4 shrink-0">
+            <Search :size="12" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input v-model="portSearch" type="text" placeholder="搜索端口..." class="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs focus:outline-none focus:border-blue-400 transition-all shadow-inner" />
+          </div>
+
+          <div class="flex-1 border-2 border-dashed border-gray-100 rounded-2xl flex flex-col items-center justify-center text-gray-300 p-4 text-center bg-gray-50/30">
+            <Scan :size="24" class="mb-2 opacity-30" />
+            <p class="text-[10px] leading-relaxed font-medium">点击扫描排查<br/>当前后台占用</p>
+          </div>
+          
+          <button @click="isScanning = true" class="mt-4 w-full py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-100 active:scale-95 hover:bg-blue-700 transition-all">
+            开始排查
+          </button>
+        </div>
       </div>
     </div>
 
+    <!-- Bottom Section: Terminal Logs -->
+    <div class="h-[260px] shrink-0 flex flex-col min-h-0 mt-2">
+      <div class="flex items-center justify-between mb-2.5 px-1">
+        <h2 class="text-[11px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+          会话终端日志 <span class="text-[9px] font-normal opacity-40">SESSION TERMINAL LOGS</span>
+        </h2>
+        <div class="flex items-center gap-2">
+          <span class="flex items-center gap-1 text-[9px] font-bold text-gray-400"><Cpu :size="10" /> {{ cpu.toFixed(1) }}%</span>
+          <div class="h-2 w-px bg-gray-300 mx-1"></div>
+          <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-500 text-[9px] font-bold border border-amber-500/20">
+            <Zap :size="10" /> 内存实时推流
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-[#05070A] border border-gray-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col flex-1 border-t-gray-700">
+        <div ref="terminalRef" class="flex-1 p-5 font-mono text-[13px] overflow-y-auto space-y-2.5 custom-terminal-scrollbar">
+          <div v-if="allLogs.length === 0" class="text-gray-600 text-xs italic flex items-center gap-2">
+            <Info :size="14"/> 等待任务流水推入...
+          </div>
+          <div v-for="(log, i) in allLogs" :key="i" class="flex items-start gap-4">
+            <span class="text-[#E0E7FF] font-black bg-blue-600 px-2 py-0.5 rounded text-[11px] shrink-0 select-none shadow-sm shadow-blue-900/50">
+              {{ log.time }}
+            </span>
+            <div class="flex-1 flex flex-wrap items-baseline gap-x-3">
+              <span class="font-bold shrink-0 text-[12px] tracking-tight" :class="{
+                'text-blue-400': log.level === 'info',
+                'text-amber-400': log.level === 'warn',
+                'text-red-400': log.level === 'error',
+                'text-green-400': log.level === 'success'
+              }">
+                [{{ log.level.toUpperCase() }}]
+              </span>
+              <span class="text-cyan-400 italic shrink-0 font-black text-[12px] shadow-cyan-900/20 shadow-sm">{{ log.tag }}</span>
+              <span class="text-gray-200 break-all leading-relaxed font-medium">{{ log.message }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Terminal Footer Stats -->
+        <div class="px-4 py-2 bg-black/60 border-t border-gray-800/40 flex items-center justify-between text-[10px] text-gray-500 font-mono">
+          <div class="flex gap-4">
+            <span class="flex items-center gap-1.5">CPU: {{ cpu.toFixed(1) }}%</span>
+            <span class="flex items-center gap-1.5">MEM: {{ memory.toFixed(1) }}%</span>
+          </div>
+          <div class="flex items-center gap-5">
+            <span class="flex items-center gap-1.5 text-gray-400">ACTIVE: {{ activeTasks }}</span>
+            <span class="flex items-center gap-1.5"><ArrowUp :size="10" class="text-amber-500/70"/> {{ formatSpeed(netUp) }}</span>
+            <span class="flex items-center gap-1.5"><ArrowDown :size="10" class="text-cyan-500/70"/> {{ formatSpeed(netDown) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modals Logic (Light Theme) -->
     <!-- Task Picker Modal -->
     <Teleport to="body">
       <div v-if="showPicker" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showPicker = false" />
-        <div class="relative glass-panel w-full max-w-lg mx-4 overflow-hidden animate-slide-up">
-          <div class="flex items-center justify-between px-6 py-4 border-b border-dark-border">
-            <h2 class="text-base font-semibold">选择任务类型</h2>
-            <button @click="showPicker = false" class="text-dark-muted hover:text-dark-text transition-colors p-1 rounded-lg hover:bg-black/[0.04]">
-              <X :size="18" />
-            </button>
+        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="showPicker = false" />
+        <div class="relative bg-white w-full max-w-lg mx-4 overflow-hidden rounded-3xl border border-gray-200 shadow-2xl animate-slide-up">
+          <div class="flex items-center justify-between px-7 py-5 border-b border-gray-100">
+            <h2 class="text-base font-bold text-gray-800">注册新任务实例</h2>
+            <button @click="showPicker = false" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-xl hover:bg-gray-50 transition-colors"><X :size="20" /></button>
           </div>
-          <div class="p-4 max-h-96 overflow-y-auto space-y-2">
-            <button
-              v-for="task in taskList"
-              :key="task.ID"
-              @click="selectTask(task)"
-              class="w-full flex items-start gap-4 p-4 rounded-xl border border-transparent hover:border-accent-blue/30 hover:bg-accent-blue/[0.04] text-left transition-all group"
-            >
-              <div class="flex-shrink-0 w-10 h-10 rounded-xl bg-black/[0.04] flex items-center justify-center text-dark-muted group-hover:text-accent-blue transition-colors">
-                <component :is="typeIcons[task.Type] || ScrollText" :size="20" />
-              </div>
+          <div class="p-4 max-h-[500px] overflow-y-auto space-y-2 custom-scrollbar">
+            <button v-for="task in taskList" :key="task.ID" @click="selectTask(task)" class="w-full flex items-start gap-4 p-4 rounded-2xl border border-transparent hover:border-blue-200 hover:bg-blue-50/50 text-left transition-all group">
+              <div class="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:text-blue-600 transition-all shadow-inner group-hover:bg-white"><component :is="typeIcons[task.Type] || ScrollText" :size="24" /></div>
               <div class="flex-1 min-w-0">
-                <div class="font-medium text-sm text-dark-text">{{ task.Name }}</div>
-                <div class="text-xs text-dark-muted mt-0.5">{{ task.Description }}</div>
+                <div class="font-bold text-sm text-gray-800">{{ task.Name }}</div>
+                <div class="text-[11px] text-gray-400 mt-1 line-clamp-2 leading-relaxed">{{ task.Description }}</div>
               </div>
-              <div class="shrink-0 self-center flex flex-col items-end gap-1">
-                <span class="text-[10px] px-2 py-0.5 rounded-full bg-black/[0.04] text-dark-muted font-mono">{{ task.Type }}</span>
-                <span class="text-[10px] px-2 py-0.5 rounded-full bg-accent-blue/10 text-accent-blue">{{ execModeLabel(task.ExecMode) }}</span>
-              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded-lg bg-blue-50 text-blue-600 font-bold border border-blue-100">{{ execModeLabel(task.ExecMode) }}</span>
             </button>
           </div>
         </div>
@@ -335,104 +374,45 @@ onUnmounted(() => {
     <!-- Config Modal -->
     <Teleport to="body">
       <div v-if="showConfig" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeConfig" />
-        <div class="relative glass-panel w-full max-w-md mx-4 overflow-hidden animate-slide-up max-h-[90vh] flex flex-col">
-          <div class="flex items-center justify-between px-6 py-4 border-b border-dark-border shrink-0">
-            <h2 class="text-base font-semibold">{{ editingSchedule ? '修改配置' : '配置任务' }}</h2>
-            <button @click="closeConfig" class="text-dark-muted hover:text-dark-text transition-colors p-1 rounded-lg hover:bg-black/[0.04]">
-              <X :size="18" />
-            </button>
+        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="closeConfig" />
+        <div class="relative bg-white w-full max-w-md mx-4 overflow-hidden rounded-3xl border border-gray-200 shadow-2xl animate-slide-up max-h-[85vh] flex flex-col">
+          <div class="flex items-center justify-between px-7 py-5 border-b border-gray-100 shrink-0">
+            <h2 class="text-base font-bold text-gray-800">{{ editingSchedule ? '修改实例配置' : '初始化任务实例' }}</h2>
+            <button @click="closeConfig" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-xl hover:bg-gray-50 transition-colors"><X :size="20" /></button>
           </div>
-          <div class="p-6 space-y-5 overflow-y-auto">
-            <div class="flex items-center gap-2 text-sm">
-              <span class="text-dark-muted">任务</span>
-              <span class="text-dark-text font-medium px-2 py-0.5 rounded-lg bg-black/[0.04]">{{ selectedTask?.Name }}</span>
+          <div class="p-6 space-y-7 overflow-y-auto custom-scrollbar">
+            <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100 shadow-inner">
+              <div class="p-2 bg-white rounded-lg shadow-sm text-blue-500"><component :is="typeIcons[selectedTask?.Type] || ScrollText" :size="18" /></div>
+              <div class="text-sm font-bold text-gray-700">{{ selectedTask?.Name }}</div>
             </div>
 
-            <!-- 备注 -->
-            <div class="space-y-1.5">
-              <label class="block text-xs font-medium text-dark-muted uppercase tracking-wider">备注</label>
-              <input
-                v-model="taskOption"
-                type="text"
-                placeholder="选填，用于标记任务用途"
-                class="w-full px-3.5 py-2.5 bg-black/[0.03] border border-dark-border rounded-xl text-sm text-dark-text placeholder-dark-muted/60 focus:outline-none focus:border-accent-blue/50 focus:ring-1 focus:ring-accent-blue/20 transition-all"
-              />
+            <div class="space-y-2">
+              <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">实例备注 (Alias)</label>
+              <input v-model="taskOption" type="text" placeholder="选填，用于辨识实例..." class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder:text-gray-300 focus:outline-none focus:border-blue-400 transition-all shadow-inner" />
             </div>
 
-            <!-- 执行方式切换 -->
-            <div class="space-y-1.5">
-              <label class="block text-xs font-medium text-dark-muted uppercase tracking-wider">执行方式</label>
-              <div class="grid grid-cols-2 gap-1 p-1 bg-black/[0.03] rounded-xl border border-dark-border">
-                <button
-                  type="button"
-                  @click="selectExecMode('manual')"
-                  :disabled="lockExecMode && chosenExecMode !== 'manual'"
-                  class="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all"
-                  :class="[
-                    chosenExecMode === 'manual'
-                      ? 'bg-accent-blue text-white shadow-sm'
-                      : (lockExecMode ? 'text-dark-muted/40 cursor-not-allowed' : 'text-dark-muted hover:text-dark-text hover:bg-black/[0.04]')
-                  ]"
-                >
-                  <Hand :size="13" />
-                  手动
-                </button>
-                <button
-                  type="button"
-                  @click="selectExecMode('schedule')"
-                  :disabled="lockExecMode && chosenExecMode !== 'schedule'"
-                  class="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all"
-                  :class="[
-                    chosenExecMode === 'schedule'
-                      ? 'bg-accent-blue text-white shadow-sm'
-                      : (lockExecMode ? 'text-dark-muted/40 cursor-not-allowed' : 'text-dark-muted hover:text-dark-text hover:bg-black/[0.04]')
-                  ]"
-                >
-                  <Clock :size="13" />
-                  定时
-                </button>
+            <div class="space-y-2">
+              <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">运行策略</label>
+              <div class="grid grid-cols-2 gap-2 p-1 bg-gray-50 rounded-xl border border-gray-200 shadow-inner">
+                <button @click="selectExecMode('manual')" :disabled="lockExecMode && chosenExecMode !== 'manual'" class="py-2 rounded-lg text-[11px] font-bold transition-all" :class="[chosenExecMode === 'manual' ? 'bg-white text-blue-600 shadow-sm border border-gray-100' : 'text-gray-400 opacity-40']">仅手动执行</button>
+                <button @click="selectExecMode('schedule')" :disabled="lockExecMode && chosenExecMode !== 'schedule'" class="py-2 rounded-lg text-[11px] font-bold transition-all" :class="[chosenExecMode === 'schedule' ? 'bg-white text-blue-600 shadow-sm border border-gray-100' : 'text-gray-400 opacity-40']">手动+定时</button>
               </div>
             </div>
 
-            <!-- cron 输入区 -->
-            <div v-if="chosenExecMode === 'schedule'" class="space-y-2">
-              <label class="block text-xs font-medium text-dark-muted uppercase tracking-wider">Cron 表达式</label>
-              <input
-                v-model="cronExpr"
-                type="text"
-                placeholder="分 时 日 月 周（例如 */5 * * * *）"
-                class="w-full px-3.5 py-2.5 bg-black/[0.03] border rounded-xl text-sm text-dark-text placeholder-dark-muted/60 focus:outline-none focus:ring-1 transition-all font-mono"
-                :class="cronError ? 'border-accent-red/60 focus:border-accent-red/80 focus:ring-accent-red/20' : 'border-dark-border focus:border-accent-blue/50 focus:ring-accent-blue/20'"
-                @input="cronError = ''"
-              />
-              <div v-if="cronError" class="text-[11px] text-accent-red">{{ cronError }}</div>
-              <div class="flex flex-wrap gap-1.5 pt-1">
-                <button
-                  v-for="p in CRON_PRESETS"
-                  :key="p.expr"
-                  type="button"
-                  @click="applyCronPreset(p.expr)"
-                  class="px-2.5 py-1 text-[11px] rounded-lg bg-black/[0.04] hover:bg-accent-blue/10 hover:text-accent-blue text-dark-muted transition-colors"
-                >
-                  {{ p.label }}
-                </button>
+            <div v-if="chosenExecMode === 'schedule'" class="space-y-3 animate-fade-in">
+              <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">Cron 表达式</label>
+              <input v-model="cronExpr" type="text" placeholder="分 时 日 月 周" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono text-gray-700 placeholder:text-gray-300 focus:outline-none focus:border-blue-400 shadow-inner" />
+              <div v-if="cronError" class="text-[10px] text-red-500 font-bold px-1">{{ cronError }}</div>
+              <div class="flex flex-wrap gap-2">
+                <button v-for="p in CRON_PRESETS" :key="p.expr" @click="applyCronPreset(p.expr)" class="px-2.5 py-1 text-[10px] rounded-lg bg-gray-50 text-gray-500 border border-gray-200 hover:bg-blue-50 hover:text-blue-600 transition-colors shadow-sm">{{ p.label }}</button>
               </div>
             </div>
 
-            <TaskConfigForm
-              v-if="configFields.length > 0"
-              ref="configForm"
-              :fields="configFields"
-              :initial-values="configInitial"
-            />
-            <div v-else-if="chosenExecMode !== 'schedule'" class="py-4 text-center text-dark-muted text-sm">该任务无需配置</div>
-
-            <button
-              @click="submitConfig"
-              class="w-full py-2.5 bg-accent-blue hover:bg-accent-blue/90 text-white rounded-xl text-sm font-medium transition-all duration-200 active:scale-[0.98]"
-            >
-              {{ editingSchedule ? '保存修改' : '创建任务' }}
+            <div class="h-px bg-gray-100" />
+            <TaskConfigForm v-if="configFields.length > 0" ref="configForm" :fields="configFields" :initial-values="configInitial" />
+            
+            <button @click="submitConfig" class="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-bold shadow-lg shadow-blue-100 transition-all active:scale-95 mt-4">
+              {{ editingSchedule ? '保存更新并同步' : '完成注册并初始化' }}
             </button>
           </div>
         </div>
@@ -442,30 +422,30 @@ onUnmounted(() => {
     <!-- Delete Confirm Modal -->
     <Teleport to="body">
       <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showDeleteConfirm = false" />
-        <div class="relative glass-panel w-full max-w-sm mx-4 overflow-hidden animate-slide-up">
-          <div class="p-6 space-y-4">
-            <h2 class="text-base font-semibold">确认删除</h2>
-            <p class="text-sm text-dark-muted leading-relaxed">
-              确定要删除任务「<span class="text-dark-text font-medium">{{ scheduleToDelete?.Name }}</span>」吗？此操作不可撤销。
-            </p>
-            <div class="flex gap-3 pt-2">
-              <button
-                @click="showDeleteConfirm = false"
-                class="flex-1 py-2.5 bg-black/[0.04] hover:bg-black/[0.07] text-dark-text rounded-xl text-sm font-medium transition-colors"
-              >
-                取消
-              </button>
-              <button
-                @click="doDelete"
-                class="flex-1 py-2.5 bg-accent-red/90 hover:bg-accent-red text-white rounded-xl text-sm font-medium transition-colors"
-              >
-                删除
-              </button>
-            </div>
+        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="showDeleteConfirm = false" />
+        <div class="relative bg-white w-full max-w-sm mx-4 overflow-hidden rounded-3xl border border-gray-200 shadow-2xl animate-slide-up p-8 text-center space-y-5">
+          <div class="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto border border-red-100 shadow-inner"><AlertCircle :size="32" /></div>
+          <div>
+            <h2 class="text-base font-bold text-gray-800">确认注销实例？</h2>
+            <p class="text-[11px] text-gray-400 mt-2 leading-relaxed">删除「{{ scheduleToDelete?.Name }}」将永久移除其配置</p>
+          </div>
+          <div class="flex gap-4">
+            <button @click="showDeleteConfirm = false" class="flex-1 py-3 bg-gray-50 text-gray-500 rounded-2xl text-sm font-bold border border-gray-200 hover:bg-gray-100 transition-all">取消</button>
+            <button @click="doDelete" class="flex-1 py-3 bg-red-500 text-white rounded-2xl text-sm font-bold shadow-lg shadow-red-100 active:scale-95 hover:bg-red-600 transition-all">确认注销</button>
           </div>
         </div>
       </div>
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar { width: 3px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.05); border-radius: 10px; }
+.custom-terminal-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-terminal-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-terminal-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 10px; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+.animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+</style>

@@ -162,55 +162,55 @@ function isSystemTaskRunning(taskId) {
 </script>
 
 <template>
-  <div class="min-h-full">
-    <div class="sticky top-0 z-30 bg-dark-bg/85 backdrop-blur-xl border-b border-dark-border">
+  <div class="min-h-full bg-gray-50">
+    <div class="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-gray-200">
       <div class="max-w-7xl mx-auto px-6 py-3">
-        <h1 class="text-base font-semibold">系统设置</h1>
+        <h1 class="text-base font-semibold text-gray-800">系统设置</h1>
       </div>
     </div>
 
     <div class="max-w-3xl mx-auto px-6 py-6 space-y-6">
       <!-- 项目介绍 -->
-      <div class="glass-panel p-6">
+      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 transition-all hover:border-blue-200">
         <div class="flex items-center gap-3 mb-4">
-          <div class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-black/[0.04]">
-            <Info :size="20" class="text-dark-muted" />
+          <div class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gray-50 border border-gray-100">
+            <Info :size="20" class="text-blue-500" />
           </div>
           <div>
-            <h2 class="text-sm font-medium">项目介绍</h2>
-            <p class="text-xs text-dark-muted">About KineticGo</p>
+            <h2 class="text-sm font-bold text-gray-800">项目介绍</h2>
+            <p class="text-[10px] text-gray-400 uppercase tracking-widest font-mono">About KineticGo</p>
           </div>
         </div>
 
         <div class="space-y-3">
-          <div class="flex items-center justify-between py-2 border-b border-dark-border/60">
-            <span class="text-sm text-dark-muted/80">项目名称</span>
-            <span class="text-sm font-medium">{{ appInfo.name }}</span>
+          <div class="flex items-center justify-between py-2 border-b border-gray-50">
+            <span class="text-sm text-gray-500">项目名称</span>
+            <span class="text-sm font-bold text-gray-700">{{ appInfo.name }}</span>
           </div>
-          <div class="flex items-center justify-between py-2 border-b border-dark-border/60">
-            <span class="text-sm text-dark-muted/80">当前版本</span>
-            <span class="text-sm font-medium">v{{ appInfo.version }}</span>
+          <div class="flex items-center justify-between py-2 border-b border-gray-50">
+            <span class="text-sm text-gray-500">当前版本</span>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-gray-100 text-gray-600">v{{ appInfo.version }}</span>
           </div>
-          <div class="flex items-center justify-between py-2 border-b border-dark-border/60">
-            <span class="text-sm text-dark-muted/80">作者</span>
-            <span class="text-sm font-medium">{{ appInfo.author }}</span>
+          <div class="flex items-center justify-between py-2 border-b border-gray-50">
+            <span class="text-sm text-gray-500">作者</span>
+            <span class="text-sm font-bold text-gray-700">{{ appInfo.author }}</span>
           </div>
-          <div class="pt-2 pb-3 border-b border-dark-border/60">
-            <span class="text-sm text-dark-muted/80">项目描述</span>
-            <p class="text-sm text-dark-text/80 mt-1.5 leading-relaxed">{{ appInfo.description }}</p>
+          <div class="pt-2 pb-3 border-b border-gray-50">
+            <span class="text-sm text-gray-500">项目描述</span>
+            <p class="text-sm text-gray-600 mt-1.5 leading-relaxed">{{ appInfo.description }}</p>
           </div>
           <div class="pt-2">
-            <span class="text-sm text-dark-muted/80">主要功能</span>
+            <span class="text-sm text-gray-500">主要功能</span>
             <ul class="mt-2.5 space-y-2">
               <li
                 v-for="(feat, idx) in appInfo.features"
                 :key="idx"
                 class="flex items-start gap-2.5 text-sm leading-relaxed"
               >
-                <span class="mt-1.5 w-1 h-1 rounded-full bg-accent-blue/60 shrink-0"></span>
-                <span class="text-dark-muted">
-                  <span class="font-medium text-dark-text">{{ feat.title }}</span>
-                  <span class="text-dark-muted/60 mx-1.5">·</span>{{ feat.desc }}
+                <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0 shadow-[0_0_8px_rgba(96,165,250,0.5)]"></span>
+                <span class="text-gray-600">
+                  <span class="font-bold text-gray-800">{{ feat.title }}</span>
+                  <span class="text-gray-300 mx-1.5">/</span>{{ feat.desc }}
                 </span>
               </li>
             </ul>
@@ -219,26 +219,26 @@ function isSystemTaskRunning(taskId) {
       </div>
 
       <!-- 版本检测 -->
-      <div class="glass-panel p-6">
+      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 transition-all hover:border-blue-200">
         <div class="flex items-center gap-3 mb-4">
-          <div class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-black/[0.04]">
-            <RefreshCw :size="20" class="text-dark-muted" />
+          <div class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gray-50 border border-gray-100">
+            <RefreshCw :size="20" class="text-blue-500" />
           </div>
           <div>
-            <h2 class="text-sm font-medium">版本检测</h2>
-            <p class="text-xs text-dark-muted">Check for Updates</p>
+            <h2 class="text-sm font-bold text-gray-800">版本检测</h2>
+            <p class="text-[10px] text-gray-400 uppercase tracking-widest font-mono">Check for Updates</p>
           </div>
         </div>
 
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm">
-              当前版本: <span class="font-medium">v{{ updateStatus.currentVersion }}</span>
+            <p class="text-sm text-gray-600">
+              当前运行版本: <span class="font-bold text-gray-800">v{{ updateStatus.currentVersion }}</span>
             </p>
             <p
               v-if="updateStatus.message"
               class="text-xs mt-1"
-              :class="updateStatus.hasUpdate ? 'text-accent-amber' : 'text-dark-muted/80'"
+              :class="updateStatus.hasUpdate ? 'text-amber-600 font-bold' : 'text-gray-400'"
             >
               {{ updateStatus.message }}
             </p>
@@ -246,9 +246,9 @@ function isSystemTaskRunning(taskId) {
           <button
             @click="doCheckUpdate"
             :disabled="updateStatus.checking"
-            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-black/[0.04] hover:bg-black/[0.07] text-dark-text text-sm font-medium transition-all disabled:opacity-50"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 text-sm font-bold transition-all disabled:opacity-50 border border-gray-100 shadow-sm active:scale-95"
           >
-            <Loader2 v-if="updateStatus.checking" :size="16" class="animate-spin" />
+            <Loader2 v-if="updateStatus.checking" :size="16" class="animate-spin text-blue-500" />
             <RefreshCw v-else :size="16" />
             {{ updateStatus.checking ? '检测中...' : '检查更新' }}
           </button>
@@ -256,44 +256,44 @@ function isSystemTaskRunning(taskId) {
       </div>
 
       <!-- 系统任务 -->
-      <div class="glass-panel p-6">
+      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 transition-all hover:border-blue-200">
         <button
           @click="systemTasksExpanded = !systemTasksExpanded"
           class="w-full flex items-center gap-3 mb-4"
         >
-          <div class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-black/[0.04]">
-            <Cpu :size="20" class="text-dark-muted" />
+          <div class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gray-50 border border-gray-100">
+            <Cpu :size="20" class="text-blue-500" />
           </div>
           <div class="flex-1 text-left">
-            <h2 class="text-sm font-medium">系统任务</h2>
-            <p class="text-xs text-dark-muted">System Tasks</p>
+            <h2 class="text-sm font-bold text-gray-800">系统监控任务</h2>
+            <p class="text-[10px] text-gray-400 uppercase tracking-widest font-mono">System Background Tasks</p>
           </div>
-          <component :is="systemTasksExpanded ? ChevronDown : ChevronRight" :size="18" class="text-dark-muted" />
+          <component :is="systemTasksExpanded ? ChevronDown : ChevronRight" :size="18" class="text-gray-300" />
         </button>
 
-        <div v-if="systemTasksExpanded" class="space-y-3">
-          <div v-if="systemTasksLoading" class="py-4 text-center text-dark-muted text-sm">加载中...</div>
-          <div v-else-if="systemTaskList.length === 0" class="py-4 text-center text-dark-muted text-sm">暂无系统任务</div>
+        <div v-if="systemTasksExpanded" class="space-y-3 animate-fade-in">
+          <div v-if="systemTasksLoading" class="py-4 text-center text-gray-400 text-sm italic">正在检索...</div>
+          <div v-else-if="systemTaskList.length === 0" class="py-4 text-center text-gray-400 text-sm italic">暂无可用系统级任务</div>
           <div
             v-for="task in systemTaskList"
             :key="task.ID"
-            class="flex items-center justify-between p-4 rounded-xl bg-black/[0.03] border border-dark-border/60"
+            class="flex items-center justify-between p-4 rounded-xl bg-gray-50 border border-gray-100 transition-colors hover:bg-white"
           >
             <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-lg bg-black/[0.04] flex items-center justify-center">
-                <component :is="systemTaskIcons[task.TaskType] || Settings" :size="16" class="text-dark-muted" />
+              <div class="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center border border-gray-100">
+                <component :is="systemTaskIcons[task.TaskType] || Settings" :size="16" class="text-gray-500" />
               </div>
               <div>
-                <div class="text-sm font-medium text-dark-text">{{ task.Name }}</div>
-                <div class="text-xs text-dark-muted">{{ task.TaskType }}</div>
+                <div class="text-sm font-bold text-gray-700">{{ task.Name }}</div>
+                <div class="text-[10px] text-gray-400 font-mono">{{ task.TaskType }}</div>
               </div>
             </div>
             <button
               @click="toggleSystemTask(task)"
-              class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+              class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95"
               :class="isSystemTaskRunning(task.ID)
-                ? 'bg-accent-red/20 text-accent-red hover:bg-accent-red/30'
-                : 'bg-accent-green/20 text-accent-green hover:bg-accent-green/30'"
+                ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-100'
+                : 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-100'"
             >
               {{ isSystemTaskRunning(task.ID) ? '停止' : '启动' }}
             </button>
@@ -302,14 +302,14 @@ function isSystemTaskRunning(taskId) {
       </div>
 
       <!-- 兑换码 -->
-      <div class="glass-panel p-6">
+      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 transition-all hover:border-blue-200">
         <div class="flex items-center gap-3 mb-4">
-          <div class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-black/[0.04]">
-            <Gift :size="20" class="text-dark-muted" />
+          <div class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gray-50 border border-gray-100">
+            <Gift :size="20" class="text-blue-500" />
           </div>
           <div>
-            <h2 class="text-sm font-medium">兑换码</h2>
-            <p class="text-xs text-dark-muted">Redeem Code</p>
+            <h2 class="text-sm font-bold text-gray-800">高级功能兑换</h2>
+            <p class="text-[10px] text-gray-400 uppercase tracking-widest font-mono">Redeem Activation Code</p>
           </div>
         </div>
 
@@ -318,28 +318,28 @@ function isSystemTaskRunning(taskId) {
             <input
               v-model="redeemCode"
               type="text"
-              placeholder="请输入兑换码"
-              class="flex-1 px-4 py-2.5 rounded-lg bg-black/[0.03] border border-dark-border text-sm text-dark-text placeholder:text-dark-muted focus:outline-none focus:border-accent-blue/40 transition-colors"
+              placeholder="请输入激活码..."
+              class="flex-1 px-4 py-2.5 rounded-xl bg-gray-50 border border-gray-100 text-sm text-gray-800 placeholder:text-gray-300 focus:outline-none focus:border-blue-300 transition-all shadow-inner"
               @keyup.enter="redeem"
             />
             <button
               @click="redeem"
               :disabled="redeeming"
-              class="px-5 py-2.5 rounded-lg bg-black/[0.06] hover:bg-black/[0.1] text-dark-text text-sm font-medium transition-all disabled:opacity-50"
+              class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-all disabled:opacity-50 shadow-md shadow-blue-100 active:scale-95"
             >
               <Loader2 v-if="redeeming" :size="16" class="animate-spin" />
-              <span v-else>兑换</span>
+              <span v-else>立即兑换</span>
             </button>
           </div>
 
           <div
             v-if="redeemResult.show"
-            class="flex items-center gap-3 p-4 rounded-lg"
-            :class="redeemResult.success ? 'bg-green-500/10' : 'bg-red-500/10'"
+            class="flex items-center gap-3 p-4 rounded-xl border animate-fade-in"
+            :class="redeemResult.success ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'"
           >
-            <CheckCircle v-if="redeemResult.success" :size="18" class="text-green-400" />
-            <XCircle v-else :size="18" class="text-red-400" />
-            <span class="text-sm" :class="redeemResult.success ? 'text-green-400' : 'text-red-400'">
+            <CheckCircle v-if="redeemResult.success" :size="18" class="text-green-500" />
+            <XCircle v-else :size="18" class="text-red-500" />
+            <span class="text-sm font-medium" :class="redeemResult.success ? 'text-green-600' : 'text-red-600'">
               {{ redeemResult.message }}
             </span>
           </div>
@@ -350,55 +350,62 @@ function isSystemTaskRunning(taskId) {
     <!-- Update Modal -->
     <Teleport to="body">
       <div v-if="showUpdateModal" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showUpdateModal = false" />
-        <div class="relative glass-panel w-full max-w-lg mx-4 overflow-hidden animate-slide-up">
-          <div class="flex items-center justify-between px-6 py-4 border-b border-dark-border">
+        <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="showUpdateModal = false" />
+        <div class="relative bg-white w-full max-w-lg mx-4 overflow-hidden rounded-2xl border border-gray-200 shadow-2xl animate-slide-up">
+          <div class="flex items-center justify-between px-6 py-5 border-b border-gray-100">
             <div class="flex items-center gap-2">
-              <AlertCircle :size="18" class="text-accent-amber" />
-              <h2 class="text-base font-semibold">发现新版本</h2>
+              <AlertCircle :size="18" class="text-amber-500" />
+              <h2 class="text-base font-bold text-gray-800">发现核心版本更新</h2>
             </div>
-            <button @click="showUpdateModal = false" class="text-dark-muted hover:text-dark-text transition-colors">
+            <button @click="showUpdateModal = false" class="text-gray-400 hover:text-gray-600 transition-colors p-1.5 rounded-lg hover:bg-gray-50">
               <X :size="18" />
             </button>
           </div>
 
-          <div class="p-6 space-y-4">
-            <div class="flex items-center gap-3 text-sm">
-              <span class="text-dark-muted">当前版本</span>
-              <span class="text-dark-text font-medium">v{{ updateInfo?.CurrentVer }}</span>
-              <span class="text-dark-muted/40">→</span>
-              <span class="text-accent-blue font-medium">{{ updateInfo?.LatestVer }}</span>
-            </div>
-
-            <div class="rounded-xl border border-dark-border bg-black/[0.02] overflow-hidden">
-              <div class="px-4 py-2 border-b border-dark-border/60 text-xs font-medium text-dark-muted uppercase tracking-wider">
-                更新内容
+          <div class="p-6 space-y-6">
+            <div class="flex items-center gap-4 text-sm">
+              <div class="flex-1 p-3 rounded-xl bg-gray-50 border border-gray-100 text-center">
+                <p class="text-[10px] text-gray-400 uppercase font-bold">当前版本</p>
+                <p class="text-base font-mono font-bold text-gray-600">v{{ updateInfo?.CurrentVer }}</p>
               </div>
-              <div class="px-4 py-3 text-sm text-dark-text/80 whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed">
-                {{ updateInfo?.ReleaseNotes || '暂无更新说明' }}
+              <div class="p-2 rounded-full bg-blue-50 text-blue-500">
+                <ChevronRight :size="16" />
+              </div>
+              <div class="flex-1 p-3 rounded-xl bg-blue-50 border border-blue-100 text-center">
+                <p class="text-[10px] text-blue-400 uppercase font-bold">最新版本</p>
+                <p class="text-base font-mono font-bold text-blue-600">v{{ updateInfo?.LatestVer }}</p>
               </div>
             </div>
 
-            <div v-if="updateError" class="text-xs text-accent-red flex items-center gap-1.5">
-              <XCircle :size="12" />
+            <div class="rounded-xl border border-gray-100 bg-gray-50 overflow-hidden shadow-inner">
+              <div class="px-4 py-2 border-b border-gray-100 bg-white/50 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                更新日志 / Release Notes
+              </div>
+              <div class="px-4 py-3 text-sm text-gray-600 whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed custom-scrollbar">
+                {{ updateInfo?.ReleaseNotes || '暂无详细更新说明' }}
+              </div>
+            </div>
+
+            <div v-if="updateError" class="p-3 rounded-lg bg-red-50 text-red-600 text-xs flex items-center gap-2 border border-red-100">
+              <XCircle :size="14" />
               {{ updateError }}
             </div>
 
-            <div class="flex gap-3 pt-1">
+            <div class="flex gap-4 pt-2">
               <button
                 @click="showUpdateModal = false"
-                class="flex-1 py-2.5 bg-black/[0.04] hover:bg-black/[0.07] text-dark-text rounded-xl text-sm font-medium transition-colors"
+                class="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-sm font-bold transition-all active:scale-95"
               >
                 稍后再说
               </button>
               <button
                 @click="doApplyUpdate"
                 :disabled="updating || !updateInfo?.DownloadURL"
-                class="flex-1 py-2.5 bg-accent-blue hover:bg-accent-blue/90 text-white rounded-xl text-sm font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95"
               >
                 <ExternalLink v-if="!updating" :size="14" />
                 <Loader2 v-else :size="14" class="animate-spin" />
-                {{ updating ? '正在打开...' : '前往下载页' }}
+                {{ updating ? '正在尝试访问...' : '立即前往更新' }}
               </button>
             </div>
           </div>
@@ -407,3 +414,25 @@ function isSystemTaskRunning(taskId) {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+</style>

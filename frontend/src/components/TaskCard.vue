@@ -1,9 +1,6 @@
 <script setup>
-import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { Play, Square, Settings, X, Wifi, Zap, Radar, Terminal, ScrollText, Clock, ClipboardCheck } from 'lucide-vue-next'
-import { eventsOn } from '../composables/useWailsRuntime'
-
-const runningGlow = 'shadow-[0_0_24px_rgba(16,185,129,0.18)]'
+import { computed } from 'vue'
+import { Play, Square, Settings, X, Wifi, Zap, Radar, Terminal, ScrollText, Clock, ClipboardCheck, Trash2, Rocket, ChevronDown } from 'lucide-vue-next'
 
 const props = defineProps({
   schedule: { type: Object, required: true },
@@ -23,22 +20,11 @@ const typeIcons = {
 
 const icon = computed(() => typeIcons[props.schedule.TaskType] || ScrollText)
 
-// 系统任务持续 tick，不展示 mini console
-const isSystemTask = computed(() => (props.schedule.TaskType || '').startsWith('system-'))
-
-// 模板若是 both，按 schedule 自己的 CronExpr 决定实际模式
-const effectiveMode = computed(() => {
-  if (props.execMode === 'manual') return 'manual'
-  if (props.execMode === 'schedule') return 'schedule'
-  return props.schedule.CronExpr ? 'schedule' : 'manual'
+const execModeText = computed(() => {
+  if (props.execMode === 'manual') return '手动'
+  if (props.execMode === 'schedule') return '定时'
+  return props.schedule.CronExpr ? '定时' : '手动'
 })
-
-const canManualStart = computed(
-  () => !props.isRunning && effectiveMode.value === 'manual'
-)
-const canStop = computed(() => props.isRunning)
-
-const execModeText = computed(() => effectiveMode.value === 'schedule' ? '定时' : '手动')
 
 const hasNextRun = computed(() => {
   return !!props.schedule.CronExpr && props.schedule.NextRunTime && props.schedule.NextRunTime !== '0001-01-01T00:00:00Z'
@@ -58,50 +44,6 @@ function formatNextRun(val) {
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${hm}`
 }
 
-// ===== mini console 日志 =====
-const MAX_LOGS = 50
-const logs = ref([])
-const consoleRef = ref(null)
-let unsubscribe = null
-
-function formatTime(unix) {
-  const d = unix ? new Date(unix * 1000) : new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
-
-function levelColor(level) {
-  if (level === 'error') return 'text-accent-red'
-  if (level === 'warn') return 'text-accent-amber'
-  return 'text-dark-text/80'
-}
-
-function appendLog(payload) {
-  logs.value.push({
-    time: formatTime(payload.time),
-    level: payload.level || 'info',
-    message: payload.message || '',
-  })
-  if (logs.value.length > MAX_LOGS) {
-    logs.value.splice(0, logs.value.length - MAX_LOGS)
-  }
-  nextTick(() => {
-    if (consoleRef.value) consoleRef.value.scrollTop = consoleRef.value.scrollHeight
-  })
-}
-
-onMounted(async () => {
-  if (isSystemTask.value) return
-  unsubscribe = await eventsOn('task_log', (payload) => {
-    if (!payload || Number(payload.scheduleId) !== Number(props.schedule.ID)) return
-    appendLog(payload)
-  })
-})
-
-onUnmounted(() => {
-  if (typeof unsubscribe === 'function') unsubscribe()
-})
-
 function handleRun() {
   emit('run', props.schedule)
 }
@@ -113,97 +55,78 @@ function handleStop() {
 
 <template>
   <div
-    class="relative rounded-2xl border border-dark-border bg-dark-card overflow-hidden transition-all duration-300 hover:translate-y-[-1px]"
-    :class="isRunning ? runningGlow : 'shadow-card hover:shadow-card-hover'"
+    class="relative rounded-2xl border border-gray-100 bg-white overflow-hidden transition-all duration-300 hover:border-blue-300 group animate-fade-in shadow-sm hover:shadow-md p-4"
+    :class="{ 'ring-1 ring-green-500/20 border-green-100': isRunning }"
   >
-    <!-- delete button -->
-    <button
-      @click="emit('delete', schedule)"
-      class="absolute top-3 right-3 z-10 w-6 h-6 flex items-center justify-center rounded-full text-dark-muted/60 hover:text-accent-red hover:bg-accent-red/10 transition-all"
-    >
-      <X :size="14" />
-    </button>
-
-    <!-- header -->
-    <div class="px-5 pt-4 pb-3 flex items-start gap-3.5">
-      <div
-        class="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-colors"
-        :class="isRunning ? 'bg-accent-green/10 text-accent-green' : 'bg-black/[0.04] text-dark-muted'"
-      >
-        <component :is="icon" :size="20" :stroke-width="1.8" />
-      </div>
-      <div class="min-w-0 flex-1 pr-6">
-        <div class="font-semibold text-sm text-dark-text truncate">{{ schedule.Name }}</div>
-        <div v-if="schedule.Option" class="text-[11px] text-dark-muted/60 truncate mt-0.5">{{ schedule.Option }}</div>
-        <div class="flex items-center gap-2 mt-1">
-          <span
-            class="status-dot"
-            :class="isRunning ? 'bg-accent-green text-accent-green' : 'bg-dark-muted/40 text-dark-muted/40'"
-          />
-          <span class="text-[11px]" :class="isRunning ? 'text-accent-green' : 'text-dark-muted'">
-            {{ isRunning ? '运行中' : '已就绪' }}
-          </span>
-          <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-black/[0.04] text-dark-muted">{{ execModeText }}</span>
-          <span
-            v-if="hasNextRun"
-            class="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-blue/10 text-accent-blue flex items-center gap-1"
-          >
-            <Clock :size="10" />
-            {{ formatNextRun(schedule.NextRunTime) }}
-          </span>
-          <span class="text-[10px] text-dark-muted/40 font-mono">#{{ schedule.ID }}</span>
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-3">
+      <div class="flex items-center gap-3">
+        <div 
+          class="w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-inner"
+          :class="isRunning ? 'bg-green-50 text-green-500' : 'bg-gray-50 text-gray-300'"
+        >
+          <component :is="icon" :size="20" :stroke-width="2.5" />
         </div>
+        <div class="min-w-0">
+          <h3 class="font-bold text-[13px] text-gray-800 truncate leading-tight">
+            {{ schedule.Name }}
+          </h3>
+          <div v-if="schedule.Option" class="text-[10px] text-gray-400 truncate mt-0.5 font-medium">{{ schedule.Option }}</div>
+        </div>
+      </div>
+      
+      <button
+        @click="emit('delete', schedule)"
+        class="p-1 rounded-full text-gray-200 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+      >
+        <X :size="14" />
+      </button>
+    </div>
+
+    <!-- Status -->
+    <div class="flex items-center gap-2 mb-4 text-[10px]">
+      <div class="flex items-center gap-1.5 px-1.5 py-0.5 rounded-lg bg-gray-50 border border-gray-100/50">
+        <span class="w-1.5 h-1.5 rounded-full" :class="isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-300'" />
+        <span :class="isRunning ? 'text-green-600 font-bold' : 'text-gray-400 font-medium'">{{ isRunning ? '运行中' : '就绪' }}</span>
+      </div>
+      <span class="text-gray-400 font-bold">{{ execModeText }}</span>
+      <div v-if="hasNextRun" class="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-blue-50 text-blue-500 font-bold border border-blue-100/50">
+        <Clock :size="10" />
+        {{ formatNextRun(schedule.NextRunTime) }}
       </div>
     </div>
 
-    <!-- action buttons -->
-    <div class="px-5 pb-3 flex gap-2">
+    <!-- Actions -->
+    <div class="flex gap-2">
       <button
-        v-if="canManualStart"
+        v-if="!isRunning"
         @click="handleRun"
-        class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 active:scale-[0.97]"
+        class="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[10px] font-bold transition-all active:scale-95 bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-100 shadow-sm"
       >
-        <Play :size="13" :fill="true" />
-        启动
+        {{ schedule.CronExpr ? '待触发' : '启动' }}
       </button>
       <button
-        v-else-if="canStop"
-        @click="handleStop"
-        class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 bg-accent-red/10 text-accent-red hover:bg-accent-red/20 active:scale-[0.97]"
-      >
-        <Square :size="13" :fill="true" />
-        结束
-      </button>
-      <div
         v-else
-        class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-black/[0.02] text-dark-muted/60"
+        @click="handleStop"
+        class="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[10px] font-bold transition-all active:scale-95 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 shadow-sm"
       >
-        等待定时触发
-      </div>
+        <Square :size="10" :fill="true" />
+        停止
+      </button>
+      
       <button
         @click="emit('edit', schedule)"
-        class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200 bg-black/[0.04] text-dark-muted hover:text-dark-text hover:bg-black/[0.07] active:scale-[0.97]"
+        class="px-2.5 flex items-center justify-center rounded-xl text-[10px] font-bold transition-all active:scale-95 bg-gray-50 text-gray-400 hover:bg-gray-100 border border-gray-100 shadow-sm"
+        title="配置"
       >
-        <Settings :size="13" />
-        配置
+        <Settings :size="12" />
       </button>
     </div>
 
-    <!-- mini console（非 system 任务展示） -->
-    <div
-      v-if="!isSystemTask"
-      class="mini-console mx-3 mb-3 rounded-xl border border-dark-border overflow-hidden"
-    >
-      <div ref="consoleRef" class="px-3 py-2 space-y-0.5 overflow-y-auto max-h-32 text-[11px] font-mono">
-        <div v-if="logs.length === 0" class="text-dark-muted/70 flex gap-2">
-          <span class="text-accent-cyan/60 select-none">&gt;</span>
-          <span>{{ isRunning ? '运行中...' : '等待输出...' }}</span>
-        </div>
-        <div v-for="(line, i) in logs" :key="i" class="flex gap-2">
-          <span class="text-dark-muted/50 shrink-0">{{ line.time }}</span>
-          <span class="text-dark-text/80 break-all" :class="levelColor(line.level)">{{ line.message }}</span>
-        </div>
-      </div>
+    <!-- Log Tip -->
+    <div class="mt-3 pt-2.5 border-t border-gray-50 flex items-center gap-2 text-[9px] text-gray-300 italic font-medium">
+      <span class="text-blue-300 font-black">&gt;</span>
+      <span>实时流水推流中...</span>
     </div>
   </div>
 </template>

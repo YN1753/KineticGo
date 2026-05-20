@@ -9,5 +9,9 @@
   "frontend:dev:serverUrl": "auto",
   "author": {
     "name": "Starry"
-  }
+  },
+  "width": 1280,
+  "height": 850,
+  "minwidth": 1024,
+  "minheight": 768
 }

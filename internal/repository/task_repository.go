@@ -31,7 +31,7 @@ func (t *TaskRepository) RemoveActiveTask(activeTasks *int64) {
 
 func (t *TaskRepository) GetTaskList() (*[]model.Task, error) {
 	var tasks []model.Task
-	err := t.Db.Model(&model.Task{}).Find(&tasks).Error
+	err := t.Db.Model(&model.Task{}).Where("NOT type=?", "system").Find(&tasks).Error
 	if err != nil {
 		return nil, errors.New("获取task列表失败")
 	}

@@ -71,51 +71,51 @@ function duration(start, end) {
 
 function statusConfig(status) {
   if (status === 'success') {
-    return { icon: CheckCircle2, cls: 'text-accent-green', text: '成功' }
+    return { icon: CheckCircle2, cls: 'text-green-600', text: '成功' }
   }
   if (status === 'running') {
-    return { icon: Clock, cls: 'text-accent-blue', text: '运行中' }
+    return { icon: Clock, cls: 'text-blue-600', text: '运行中' }
   }
-  return { icon: XCircle, cls: 'text-accent-red', text: '失败' }
+  return { icon: XCircle, cls: 'text-red-600', text: '失败' }
 }
 
 function triggerBadge(type) {
-  if (type === 'manual') return { text: '手动', cls: 'bg-black/[0.04] text-dark-muted' }
-  return { text: '定时', cls: 'bg-accent-blue/10 text-accent-blue' }
+  if (type === 'manual') return { text: '手动', cls: 'bg-gray-100 text-gray-500' }
+  return { text: '定时', cls: 'bg-blue-50 text-blue-600' }
 }
 
 function levelClass(level) {
-  if (level === 'error') return 'text-accent-red'
-  if (level === 'warn') return 'text-accent-amber'
-  return 'text-dark-muted'
+  if (level === 'error') return 'text-red-600'
+  if (level === 'warn') return 'text-amber-600'
+  return 'text-gray-500'
 }
 
 onMounted(load)
 </script>
 
 <template>
-  <div class="min-h-full">
-    <div class="sticky top-0 z-30 bg-dark-bg/85 backdrop-blur-xl border-b border-dark-border">
+  <div class="min-h-full bg-gray-50">
+    <div class="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-gray-200">
       <div class="max-w-7xl mx-auto px-6 py-3">
-        <h1 class="text-base font-semibold">历史日志</h1>
+        <h1 class="text-base font-semibold text-gray-800">历史日志</h1>
       </div>
     </div>
 
     <div class="max-w-7xl mx-auto px-6 py-6">
-      <div v-if="loading" class="py-24 text-center text-dark-muted text-sm">加载中...</div>
+      <div v-if="loading" class="py-24 text-center text-gray-400 text-sm italic">加载中...</div>
 
       <div v-else-if="executions.length === 0" class="py-24 text-center">
-        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-black/[0.04] mb-4">
-          <ScrollText :size="28" class="text-dark-muted/50" />
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gray-100 mb-4 border border-gray-200">
+          <ScrollText :size="28" class="text-gray-300" />
         </div>
-        <div class="text-dark-muted text-sm">暂无执行记录</div>
+        <div class="text-gray-400 text-sm">暂无执行记录</div>
       </div>
 
       <div v-else class="space-y-3">
         <div
           v-for="exec in executions"
           :key="exec.ID"
-          class="rounded-2xl border border-dark-border bg-dark-card overflow-hidden transition-all duration-200 hover:border-dark-border/80"
+          class="rounded-2xl border border-gray-200 bg-white overflow-hidden transition-all duration-200 hover:border-blue-300 shadow-sm"
         >
           <!-- card header -->
           <div
@@ -130,14 +130,14 @@ onMounted(load)
                 class="shrink-0"
               />
               <div class="min-w-0">
-                <div class="text-sm font-medium text-dark-text truncate">
+                <div class="text-sm font-bold text-gray-700 truncate">
                   {{ scheduleName(exec.OptionID) }}
                 </div>
-                <div class="text-[11px] text-dark-muted mt-0.5 flex items-center gap-2">
+                <div class="text-[11px] text-gray-400 mt-0.5 flex items-center gap-2">
                   <span>{{ formatTime(exec.StartTime) }}</span>
-                  <span class="text-dark-muted/40">·</span>
+                  <span class="text-gray-200">·</span>
                   <span>耗时 {{ duration(exec.StartTime, exec.EndTime) }}</span>
-                  <span v-if="exec.ResultSummary" class="text-dark-muted/40">·</span>
+                  <span v-if="exec.ResultSummary" class="text-gray-200">·</span>
                   <span v-if="exec.ResultSummary" class="truncate max-w-[200px]">{{ exec.ResultSummary }}</span>
                 </div>
               </div>
@@ -145,13 +145,13 @@ onMounted(load)
 
             <div class="flex items-center gap-2 shrink-0 ml-3">
               <span
-                class="text-[10px] px-2 py-0.5 rounded-full"
+                class="text-[10px] px-2 py-0.5 rounded-full font-medium"
                 :class="triggerBadge(exec.TriggerType).cls"
               >
                 {{ triggerBadge(exec.TriggerType).text }}
               </span>
               <span
-                class="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1"
+                class="text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-bold"
                 :class="statusConfig(exec.Status).cls"
               >
                 <component :is="statusConfig(exec.Status).icon" :size="10" />
@@ -160,17 +160,17 @@ onMounted(load)
               <component
                 :is="expandedId === exec.ID ? ChevronDown : ChevronRight"
                 :size="14"
-                class="text-dark-muted/60"
+                class="text-gray-300"
               />
             </div>
           </div>
 
           <!-- expanded logs -->
           <div v-if="expandedId === exec.ID" class="px-5 pb-4">
-            <div class="rounded-xl border border-dark-border overflow-hidden">
+            <div class="rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
               <div class="px-3 py-2 space-y-0.5 max-h-48 overflow-y-auto text-[11px] font-mono">
-                <div v-if="!exec._logs || exec._logs.length === 0" class="text-dark-muted/70 flex gap-2">
-                  <span class="text-accent-cyan/60 select-none">&gt;</span>
+                <div v-if="!exec._logs || exec._logs.length === 0" class="text-gray-400 flex gap-2">
+                  <span class="text-blue-400 select-none">&gt;</span>
                   <span>暂无日志</span>
                 </div>
                 <div
@@ -178,11 +178,11 @@ onMounted(load)
                   :key="log.ID"
                   class="flex gap-2"
                 >
-                  <span class="text-dark-muted/50 shrink-0">{{ formatTime(log.CreatedAt).split(' ')[1] }}</span>
-                  <span class="shrink-0 w-10 text-right" :class="levelClass(log.Level)">
+                  <span class="text-gray-400 shrink-0">{{ formatTime(log.CreatedAt).split(' ')[1] }}</span>
+                  <span class="shrink-0 w-10 text-right font-bold" :class="levelClass(log.Level)">
                     {{ (log.Level || 'info').toUpperCase() }}
                   </span>
-                  <span class="text-dark-text/80 break-all">{{ log.Message }}</span>
+                  <span class="text-gray-600 break-all">{{ log.Message }}</span>
                 </div>
               </div>
             </div>
