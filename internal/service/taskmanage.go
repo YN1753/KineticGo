@@ -170,7 +170,6 @@ func (t *TaskManageService) Start(ctx context.Context, scheduleId uint) error {
 		} else if runErr != nil {
 			runtime.EventsEmit(childCtx, "log", runErr.Error())
 		}
-
 		if task.CronExpr != "" {
 			if sched, parseErr := cron.ParseStandard(task.CronExpr); parseErr == nil {
 				_ = t.TaskRepo.UpdateScheduleNextRunTime(scheduleId, sched.Next(time.Now()))

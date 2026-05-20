@@ -57,7 +57,7 @@ func GetPortMessage(ctx context.Context) ([]PortKiller, error) {
 
 	var sysProcAttr *syscall.SysProcAttr
 	if sysType == "windows" {
-		sysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+		sysProcAttr = getSysProcAttr()
 		cmd.SysProcAttr = sysProcAttr
 	}
 
@@ -207,7 +207,7 @@ func KillPortByPid(pid uint) error {
 
 	if sysType == "windows" {
 		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(int(pid)))
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+		cmd.SysProcAttr = getSysProcAttr()
 	} else {
 		cmd = exec.Command("kill", "-9", strconv.Itoa(int(pid)))
 	}
