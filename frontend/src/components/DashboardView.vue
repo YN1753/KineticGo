@@ -5,7 +5,8 @@ import {
   ScrollText, Wifi, Zap, Radar, Terminal, Clock, Hand, 
   ClipboardCheck, ChevronDown, ChevronRight, Search, Scan, 
   Cpu as CpuIcon, Code, Terminal as ShellIcon, Database, 
-  BrainCircuit, AlertCircle, Info, RefreshCw, Power
+  BrainCircuit, AlertCircle, Info, RefreshCw, Power, Rocket, School,
+  Globe, Monitor
 } from 'lucide-vue-next'
 import { useSystemStats } from '../composables/useSystemStats'
 import { useTaskApi } from '../composables/useTaskApi'
@@ -30,12 +31,18 @@ const typeIcons = {
   load_test: Zap,
   net_radar: Radar,
   port_killer: Terminal,
+  app_launcher: Rocket,
+  // Launcher Icons mapping
+  Rocket, Zap, Code, Terminal, Globe, Cpu, Monitor
 }
 
 // modal state
 const showPicker = ref(false)
 const showConfig = ref(false)
 const showDeleteConfirm = ref(false)
+
+const pickerFilter = ref([]) // 用于过滤 picker 中的任务类型
+const pickerTitle = ref('注册新任务实例')
 
 const selectedTask = ref(null)
 const configFields = ref([])
@@ -120,15 +127,28 @@ async function onKillPort(port) {
   }
 }
 
-// --- App Launcher Mock ---
-const apps = ref([
-  { name: 'VS Code', path: 'Code.exe', icon: Code, color: 'text-blue-500' },
-  { name: 'GoLand', path: 'goland64.exe', icon: CpuIcon, color: 'text-cyan-500' },
-  { name: 'Terminal', path: 'PowerShell', icon: ShellIcon, color: 'text-indigo-500' },
-  { name: 'DBeaver', path: 'dbeaver.exe', icon: Database, color: 'text-blue-600' },
-  { name: 'Postman', path: 'postman.exe', icon: Zap, color: 'text-orange-500' },
-  { name: 'Chrome', path: 'chrome.exe', icon: Activity, color: 'text-green-500' },
-])
+// --- App Launcher Logic ---
+const launcherSchedules = computed(() => {
+  return scheduleList.value.filter(s => s.TaskType === 'app_launcher')
+})
+
+function getLauncherPaths(configStr) {
+  try {
+    const config = typeof configStr === 'string' ? JSON.parse(configStr) : configStr
+    const paths = config?.paths || ''
+    return paths.split('\n').map(p => p.trim()).filter(p => p)
+  } catch (e) {
+    return []
+  }
+}
+
+async function addLauncherDirectly() {
+  if (taskList.value.length === 0) await fetchTaskList()
+  const task = taskList.value.find(t => t.Type === 'app_launcher')
+  if (task) {
+    selectTask(task)
+  }
+}
 
 // --- Centralized Logs ---
 const allLogs = ref([])
@@ -163,37 +183,157 @@ function appendGlobalLog(payload) {
 }
 
 // --- Logic methods ---
-async function openPicker() { await fetchTaskList(); showPicker.value = true }
+async function openPicker(filterTypes = [], title = '注册新任务实例') { 
+  await fetchTaskList()
+  pickerFilter.value = filterTypes
+  pickerTitle.value = title
+  showPicker.value = true 
+}
+
+const filteredTasks = computed(() => {
+  if (pickerFilter.value.length === 0) {
+    // 如果没有过滤器，排除掉 system 类型，只显示业务类型
+    return taskList.value.filter(t => t.Type !== 'system')
+  }
+  return taskList.value.filter(t => pickerFilter.value.includes(t.Type))
+})
+
 async function selectTask(task) {
   selectedTask.value = task; showPicker.value = false
-  const raw = await fetchTaskConfig(task.ID); configFields.value = Array.isArray(raw) ? raw : []
+  const raw = await fetchTaskConfig(task.ID)
+  let fields = Array.isArray(raw) ? raw : []
+  
+  // App Launcher 专属动态 Schema 注入
+  if (task.Type === 'app_launcher') {
+    fields = [
+      {
+        field: 'paths',
+        label: '启动路径列表',
+        input_type: 'textarea',
+        placeholder: '请输入本地程序绝对路径或 URL（一行一个）',
+        default_val: ''
+      },
+      {
+        field: 'icon',
+        label: '显示图标',
+        input_type: 'icon_picker',
+        options: [
+          { value: 'Rocket' }, { value: 'Zap' }, { value: 'Code' },
+          { value: 'Terminal' }, { value: 'Globe' }, { value: 'Cpu' },
+          { value: 'Monitor' }
+        ],
+        default_val: 'Rocket'
+      },
+      {
+        field: 'color',
+        label: '主题色',
+        input_type: 'color_picker',
+        options: [
+          { value: 'text-blue-500 bg-blue-50' },
+          { value: 'text-indigo-500 bg-indigo-50' },
+          { value: 'text-cyan-500 bg-cyan-50' },
+          { value: 'text-purple-500 bg-purple-50' },
+          { value: 'text-emerald-500 bg-emerald-50' },
+          { value: 'text-orange-500 bg-orange-50' }
+        ],
+        default_val: 'text-blue-500 bg-blue-50'
+      }
+    ]
+  }
+  
+  configFields.value = fields
   configInitial.value = {}; editingSchedule.value = null
+  taskName.value = task.Name
   const mode = task.ExecMode || 'manual'
-  if (mode === 'both') { chosenExecMode.value = 'manual'; lockExecMode.value = false } 
-  else { chosenExecMode.value = mode === 'schedule' ? 'schedule' : 'manual'; lockExecMode.value = true }
+  const isLauncher = task.Type === 'app_launcher'
+
+  if (isLauncher) {
+    chosenExecMode.value = 'manual'
+    lockExecMode.value = true
+  } else if (mode === 'both') { 
+    chosenExecMode.value = 'manual'
+    lockExecMode.value = false 
+  } else { 
+    chosenExecMode.value = mode === 'schedule' ? 'schedule' : 'manual'
+    lockExecMode.value = true 
+  }
   cronExpr.value = ''; cronError.value = ''; showConfig.value = true
 }
+
 async function editConfig(schedule) {
   const fresh = await fetchScheduleById(schedule.ID); editingSchedule.value = fresh
   if (taskList.value.length === 0) await fetchTaskList()
   const task = taskList.value.find(t => t.Type === fresh.TaskType)
   selectedTask.value = task || { ID: 0, Name: fresh.Name, Type: fresh.TaskType }
-  if (task) { const raw = await fetchTaskConfig(task.ID); configFields.value = Array.isArray(raw) ? raw : [] }
-  else configFields.value = []
+  
+  let fields = []
+  if (task) { 
+    const raw = await fetchTaskConfig(task.ID)
+    fields = Array.isArray(raw) ? raw : []
+    
+    if (task.Type === 'app_launcher') {
+      fields = [
+        {
+          field: 'paths',
+          label: '启动路径列表',
+          input_type: 'textarea',
+          placeholder: '请输入本地程序绝对路径或 URL（一行一个）',
+          default_val: ''
+        },
+        {
+          field: 'icon',
+          label: '显示图标',
+          input_type: 'icon_picker',
+          options: [
+            { value: 'Rocket' }, { value: 'Zap' }, { value: 'Code' },
+            { value: 'Terminal' }, { value: 'Globe' }, { value: 'Cpu' },
+            { value: 'Monitor' }
+          ],
+          default_val: 'Rocket'
+        },
+        {
+          field: 'color',
+          label: '主题色',
+          input_type: 'color_picker',
+          options: [
+            { value: 'text-blue-500 bg-blue-50' },
+            { value: 'text-indigo-500 bg-indigo-50' },
+            { value: 'text-cyan-500 bg-cyan-50' },
+            { value: 'text-purple-500 bg-purple-50' },
+            { value: 'text-emerald-500 bg-emerald-50' },
+            { value: 'text-orange-500 bg-orange-50' }
+          ],
+          default_val: 'text-blue-500 bg-blue-50'
+        }
+      ]
+    }
+  }
+  configFields.value = fields
+
   try { configInitial.value = typeof fresh.Config === 'string' ? JSON.parse(fresh.Config) : (fresh.Config || {}) } catch { configInitial.value = {} }
   cronExpr.value = fresh.CronExpr || ''; cronError.value = ''
-  chosenExecMode.value = fresh.CronExpr ? 'schedule' : 'manual'; lockExecMode.value = true
+  taskName.value = fresh.Name
+  
+  const isLauncher = fresh.TaskType === 'app_launcher'
+  if (isLauncher) {
+    chosenExecMode.value = 'manual'
+    lockExecMode.value = true
+  } else {
+    chosenExecMode.value = fresh.CronExpr ? 'schedule' : 'manual'
+    lockExecMode.value = true
+  }
+  
   taskOption.value = fresh.Option || ''; showConfig.value = true
 }
 async function submitConfig() {
   cronError.value = ''; const isSchedule = chosenExecMode.value === 'schedule'
   if (isSchedule && !cronExpr.value.trim()) { cronError.value = '请填写 cron 表达式'; return }
   const values = configForm.value?.getValues() ?? {}; const cronToSend = isSchedule ? cronExpr.value.trim() : ''
-  if (editingSchedule.value) await updateSchedule({ ...editingSchedule.value, Config: JSON.stringify(values), CronExpr: cronToSend, Option: taskOption.value.trim() })
-  else await createSchedule({ Name: selectedTask.value.Name, TaskType: selectedTask.value.Type, Config: JSON.stringify(values), CronExpr: cronToSend, IsEnabled: true, Option: taskOption.value.trim() })
+  if (editingSchedule.value) await updateSchedule({ ...editingSchedule.value, Name: taskName.value.trim(), Config: JSON.stringify(values), CronExpr: cronToSend, Option: taskOption.value.trim() })
+  else await createSchedule({ Name: taskName.value.trim(), TaskType: selectedTask.value.Type, Config: JSON.stringify(values), CronExpr: cronToSend, IsEnabled: true, Option: taskOption.value.trim() })
   closeConfig(); await fetchScheduleList()
 }
-function closeConfig() { showConfig.value = false; cronExpr.value = ''; cronError.value = ''; chosenExecMode.value = 'manual'; lockExecMode.value = false; editingSchedule.value = null; taskOption.value = '' }
+function closeConfig() { showConfig.value = false; cronExpr.value = ''; taskName.value = ''; cronError.value = ''; chosenExecMode.value = 'manual'; lockExecMode.value = false; editingSchedule.value = null; taskOption.value = '' }
 function selectExecMode(mode) { if (lockExecMode.value && mode !== chosenExecMode.value) return; chosenExecMode.value = mode; cronError.value = '' }
 function applyCronPreset(expr) { cronExpr.value = expr; cronError.value = '' }
 function confirmDelete(schedule) { scheduleToDelete.value = schedule; showDeleteConfirm.value = true }
@@ -223,8 +363,16 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); if (unsubscribeLogs
 const chosenExecMode = ref('manual')
 const lockExecMode = ref(false)
 const cronExpr = ref('')
+const taskName = ref('')
 const taskOption = ref('')
 const cronError = ref('')
+
+const CRON_PRESETS = [
+  { label: '每分钟', expr: '0 * * * * *' },
+  { label: '每 5 分钟', expr: '0 */5 * * * *' },
+  { label: '每小时', expr: '0 0 * * * *' },
+  { label: '每天零点', expr: '0 0 0 * * *' },
+]
 </script>
 
 <template>
@@ -234,21 +382,24 @@ const cronError = ref('')
     <div class="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden custom-scrollbar pb-2 lg:pb-0">
       <div class="grid grid-cols-12 gap-4 lg:h-full">
       
-        <!-- Column 1: Task Management -->
+        <!-- Column 1: School Services -->
         <div class="col-span-12 lg:col-span-3 flex flex-col min-h-0 lg:h-full">
           <div class="flex items-center justify-between mb-2 px-1 shrink-0">
-            <h2 class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">任务实例</h2>
-            <button @click="openPicker" class="p-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all border border-blue-100 active:scale-95">
+            <h2 class="text-[11px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+              <School :size="12" />
+              校园服务
+            </h2>
+            <button @click="openPicker(['campus_auth', '652_signin'], '注册校园服务实例')" class="p-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 transition-all border border-blue-100 active:scale-95">
               <Plus :size="14" :stroke-width="3" />
             </button>
           </div>
 
           <div class="flex-1 overflow-visible lg:overflow-y-auto lg:pr-1 custom-scrollbar space-y-4 min-h-0">
             <div v-if="loading" class="py-12 text-center text-gray-400 text-xs italic">Loading...</div>
-            <div v-else-if="groupedSchedules.length === 0" class="py-12 text-center bg-white rounded-2xl border border-dashed border-gray-200">
-              <p class="text-xs text-gray-300">暂无实例</p>
+            <div v-else-if="groupedSchedules.filter(g => ['campus_auth', '652_signin'].includes(g.type)).length === 0" class="py-12 text-center bg-white rounded-2xl border border-dashed border-gray-200">
+              <p class="text-xs text-gray-300">暂无服务</p>
             </div>
-            <div v-else v-for="group in groupedSchedules" :key="group.type" class="space-y-2">
+            <div v-else v-for="group in groupedSchedules.filter(g => ['campus_auth', '652_signin'].includes(g.type))" :key="group.type" class="space-y-2">
               <div @click="toggleGroup(group.type)" class="flex items-center justify-between group cursor-pointer sticky top-0 bg-gray-50/95 backdrop-blur-sm py-1.5 z-10">
                 <div class="flex items-center gap-2">
                   <div class="p-1.5 rounded-lg bg-white shadow-sm border border-gray-100 text-gray-400 group-hover:text-blue-500 transition-colors">
@@ -283,25 +434,53 @@ const cronError = ref('')
                   <p class="text-[10px] text-gray-400 mt-0.5 leading-relaxed">一键异步调起开发常用程序</p>
                 </div>
               </div>
-              <button class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-1.5 rounded-xl text-[10px] font-bold shadow-md shadow-blue-100 active:scale-95 flex items-center gap-2">
-                <BrainCircuit :size="14" />
-                AI 编排
-              </button>
             </div>
             
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 overflow-visible lg:overflow-y-auto lg:pr-1 custom-scrollbar content-start flex-1">
-              <div v-for="app in apps" :key="app.name" class="p-4 bg-gray-50 border border-gray-100 rounded-2xl hover:border-blue-400/50 hover:bg-white hover:shadow-md transition-all cursor-pointer group flex flex-col items-center text-center gap-3">
-                <div class="p-3 rounded-2xl bg-white shadow-sm group-hover:scale-110 transition-transform shadow-inner" :class="app.color">
-                  <component :is="app.icon" :size="22" />
+            <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 overflow-visible lg:overflow-y-auto lg:pr-1 custom-scrollbar content-start flex-1 p-2">
+              <div 
+                v-for="s in launcherSchedules" 
+                :key="s.ID" 
+                @click="onRun(s)"
+                class="flex flex-col items-center gap-2 transition-all cursor-pointer group relative"
+              >
+                <!-- Quick Actions Overlay (App Style) -->
+                <div class="absolute -top-1 -right-1 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-all z-20 scale-90 origin-top-right">
+                  <button 
+                    @click.stop="editConfig(s)"
+                    class="p-1.5 rounded-full bg-white text-gray-400 hover:text-blue-500 shadow-md border border-gray-100 transition-all"
+                    title="配置"
+                  >
+                    <Settings :size="10" />
+                  </button>
+                  <button 
+                    @click.stop="confirmDelete(s)"
+                    class="p-1.5 rounded-full bg-white text-gray-400 hover:text-red-500 shadow-md border border-gray-100 transition-all"
+                    title="删除"
+                  >
+                    <X :size="10" />
+                  </button>
                 </div>
-                <div class="min-w-0">
-                  <div class="text-xs font-bold text-gray-800 truncate">{{ app.name }}</div>
-                  <div class="text-[9px] text-gray-400 font-mono truncate mt-0.5 opacity-60">{{ app.path }}</div>
+
+                <div 
+                  class="w-12 h-12 md:w-14 md:h-14 rounded-[1.2rem] flex items-center justify-center shadow-sm group-hover:scale-105 group-active:scale-95 transition-all shadow-inner shrink-0 border border-transparent group-hover:border-white/50"
+                  :class="JSON.parse(s.Config)?.color || 'text-blue-500 bg-blue-50'"
+                >
+                  <component :is="typeIcons[JSON.parse(s.Config)?.icon] || Rocket" :size="24" />
+                </div>
+                
+                <div class="w-full text-center">
+                  <div class="text-[10px] font-bold text-gray-700 truncate px-0.5 leading-tight group-hover:text-blue-600 transition-colors">{{ s.Name }}</div>
                 </div>
               </div>
-              <button class="aspect-square flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-100 rounded-2xl hover:bg-gray-50 text-gray-300 hover:text-gray-400 transition-colors">
-                <Plus :size="20" />
-                <span class="text-[10px] font-bold">新增入口</span>
+              
+              <button 
+                @click="addLauncherDirectly"
+                class="flex flex-col items-center gap-2 group transition-all"
+              >
+                <div class="w-12 h-12 md:w-14 md:h-14 flex flex-col items-center justify-center border-2 border-dashed border-gray-100 rounded-[1.2rem] group-hover:bg-gray-50 group-hover:border-gray-200 text-gray-300 group-hover:text-gray-400 transition-all">
+                  <Plus :size="20" />
+                </div>
+                <span class="text-[10px] font-bold text-gray-400 group-hover:text-gray-500">新增</span>
               </button>
             </div>
           </div>
@@ -430,11 +609,11 @@ const cronError = ref('')
         <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" @click="showPicker = false" />
         <div class="relative bg-white w-full max-w-lg mx-4 overflow-hidden rounded-3xl border border-gray-200 shadow-2xl animate-slide-up">
           <div class="flex items-center justify-between px-7 py-5 border-b border-gray-100">
-            <h2 class="text-base font-bold text-gray-800">注册新任务实例</h2>
+            <h2 class="text-base font-bold text-gray-800">{{ pickerTitle }}</h2>
             <button @click="showPicker = false" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-xl hover:bg-gray-50 transition-colors"><X :size="20" /></button>
           </div>
           <div class="p-4 max-h-[500px] overflow-y-auto space-y-2 custom-scrollbar">
-            <button v-for="task in taskList" :key="task.ID" @click="selectTask(task)" class="w-full flex items-start gap-4 p-4 rounded-2xl border border-transparent hover:border-blue-200 hover:bg-blue-50/50 text-left transition-all group">
+            <button v-for="task in filteredTasks" :key="task.ID" @click="selectTask(task)" class="w-full flex items-start gap-4 p-4 rounded-2xl border border-transparent hover:border-blue-200 hover:bg-blue-50/50 text-left transition-all group">
               <div class="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:text-blue-600 transition-all shadow-inner group-hover:bg-white"><component :is="typeIcons[task.Type] || ScrollText" :size="24" /></div>
               <div class="flex-1 min-w-0">
                 <div class="font-bold text-sm text-gray-800">{{ task.Name }}</div>
@@ -442,6 +621,7 @@ const cronError = ref('')
               </div>
               <span class="text-[10px] px-2 py-0.5 rounded-lg bg-blue-50 text-blue-600 font-bold border border-blue-100">{{ execModeLabel(task.ExecMode) }}</span>
             </button>
+            <div v-if="filteredTasks.length === 0" class="py-12 text-center text-gray-300 italic text-xs">暂无可选任务</div>
           </div>
         </div>
       </div>
@@ -456,13 +636,13 @@ const cronError = ref('')
             <button @click="closeConfig" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-xl hover:bg-gray-50 transition-colors"><X :size="20" /></button>
           </div>
           <div class="p-6 space-y-7 overflow-y-auto custom-scrollbar">
-            <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100 shadow-inner">
-              <div class="p-2 bg-white rounded-lg shadow-sm text-blue-500"><component :is="typeIcons[selectedTask?.Type] || ScrollText" :size="18" /></div>
-              <div class="text-sm font-bold text-gray-700">{{ selectedTask?.Name }}</div>
+            <div class="space-y-2">
+              <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">快捷键名称 (Label)</label>
+              <input v-model="taskName" type="text" placeholder="输入快捷入口名称..." class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder:text-gray-300 focus:outline-none focus:border-blue-400 transition-all shadow-inner" />
             </div>
             <div class="space-y-2">
-              <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">实例备注 (Alias)</label>
-              <input v-model="taskOption" type="text" placeholder="用于辨识实例..." class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder:text-gray-300 focus:outline-none focus:border-blue-400 transition-all shadow-inner" />
+              <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">附加备注 (Optional)</label>
+              <input v-model="taskOption" type="text" placeholder="用于补充辨识..." class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder:text-gray-300 focus:outline-none focus:border-blue-400 transition-all shadow-inner" />
             </div>
             <div class="space-y-2">
               <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">运行策略</label>

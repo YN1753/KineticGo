@@ -177,6 +177,13 @@ func InitTaskTemplates() []model.Task {
 			Config:      model.TempleConfig(`[]`),
 			ExecMode:    "manual",
 		},
+		{
+			Type:        "app_launcher",
+			Name:        "应用启动器",
+			Description: "一键异步拉起本地程序、脚本或网页 URL",
+			Config:      model.TempleConfig(`[]`),
+			ExecMode:    "manual",
+		},
 	}
 
 	return templates
@@ -210,7 +217,7 @@ func InitTaskSchedule() []model.TaskSchedule {
 		},
 		{
 			Name:      "端口杀手",
-			TaskType:  "system-port_killer",
+			TaskType:  "port_killer",
 			IsEnabled: true,
 			Config:    model.TempleConfig(`{}`),
 		},

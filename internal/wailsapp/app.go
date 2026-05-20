@@ -34,6 +34,7 @@ func (a *App) OnStartup(ctx context.Context) {
 	a.taskManage.Register("campus_auth", service.NewSuseWifiService)
 	a.taskManage.Register("652_signin", service.NewSignInService)
 	a.taskManage.Register("port_killer", service.NewPortKillerService)
+	a.taskManage.Register("app_launcher", service.NewAppLauncherService)
 	a.taskManage.LoadEnabledCronSchedules()
 	go func() {
 		time.Sleep(1 * time.Second)

@@ -16,11 +16,28 @@ const typeIcons = {
   load_test: Zap,
   net_radar: Radar,
   port_killer: Terminal,
+  app_launcher: Rocket,
 }
 
 const icon = computed(() => typeIcons[props.schedule.TaskType] || ScrollText)
 
+const isLauncher = computed(() => props.schedule.TaskType === 'app_launcher')
+
+const launcherPaths = computed(() => {
+  if (!isLauncher.value) return []
+  try {
+    const config = typeof props.schedule.Config === 'string' 
+      ? JSON.parse(props.schedule.Config) 
+      : props.schedule.Config
+    const paths = config?.paths || ''
+    return paths.split('\n').map(p => p.trim()).filter(p => p)
+  } catch (e) {
+    return []
+  }
+})
+
 const execModeText = computed(() => {
+  if (isLauncher.value) return '快捷启动'
   if (props.execMode === 'manual') return '手动'
   if (props.execMode === 'schedule') return '定时'
   return props.schedule.CronExpr ? '定时' : '手动'
@@ -85,15 +102,24 @@ function handleStop() {
 
     <!-- Status -->
     <div class="flex items-center gap-2 mb-4 text-[10px]">
-      <div class="flex items-center gap-1.5 px-1.5 py-0.5 rounded-lg bg-gray-50 border border-gray-100/50">
-        <span class="w-1.5 h-1.5 rounded-full" :class="isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-300'" />
-        <span :class="isRunning ? 'text-green-600 font-bold' : 'text-gray-400 font-medium'">{{ isRunning ? '运行中' : '就绪' }}</span>
+      <div class="flex items-center gap-1.5 px-1.5 py-0.5 rounded-lg" :class="isLauncher ? 'bg-blue-50 border border-blue-100/50' : 'bg-gray-50 border border-gray-100/50'">
+        <span class="w-1.5 h-1.5 rounded-full" :class="isRunning ? 'bg-green-500 animate-pulse' : (isLauncher ? 'bg-blue-400' : 'bg-gray-300')" />
+        <span :class="isRunning ? 'text-green-600 font-bold' : (isLauncher ? 'text-blue-600 font-bold' : 'text-gray-400 font-medium')">{{ isRunning ? '运行中' : (isLauncher ? '快捷' : '就绪') }}</span>
       </div>
       <span class="text-gray-400 font-bold">{{ execModeText }}</span>
       <div v-if="hasNextRun" class="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-blue-50 text-blue-500 font-bold border border-blue-100/50">
         <Clock :size="10" />
-        {{ formatNextRun(schedule.NextRunTime) }}
+        {{ formatNextRun(props.schedule.NextRunTime) }}
       </div>
+    </div>
+
+    <!-- Path Preview for App Launcher -->
+    <div v-if="isLauncher && launcherPaths.length > 0" class="mb-4 space-y-1">
+      <div v-for="(path, idx) in launcherPaths.slice(0, 3)" :key="idx" class="flex items-center gap-2 px-2 py-1 bg-gray-50/50 rounded-md border border-gray-100/50">
+        <span class="text-[9px] font-black text-blue-300 font-mono">#{{ idx + 1 }}</span>
+        <span class="text-[9px] text-gray-500 truncate font-medium">{{ path }}</span>
+      </div>
+      <div v-if="launcherPaths.length > 3" class="text-[8px] text-gray-300 italic px-2">+ {{ launcherPaths.length - 3 }} 更多目标...</div>
     </div>
 
     <!-- Actions -->
@@ -102,8 +128,10 @@ function handleStop() {
         v-if="!isRunning"
         @click="handleRun"
         class="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[10px] font-bold transition-all active:scale-95 bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-100 shadow-sm"
+        :class="{'bg-blue-50 text-blue-600 border-blue-100 hover:bg-blue-100': isLauncher}"
       >
-        {{ schedule.CronExpr ? '待触发' : '启动' }}
+        <Rocket v-if="isLauncher" :size="10" />
+        {{ isLauncher ? '一键唤醒' : (props.schedule.CronExpr ? '待触发' : '启动') }}
       </button>
       <button
         v-else
