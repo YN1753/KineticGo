@@ -174,10 +174,8 @@ func InitTaskTemplates() []model.Task {
 			Type:        "port_killer",
 			Name:        "端口杀手",
 			Description: "扫描并一键关闭占用特定端口的系统进程",
-			Config: model.TempleConfig(`[
-				{"field": "port", "label": "目标端口号", "input_type": "number", "placeholder": "例如: 8080"}
-			]`),
-			ExecMode: "manual",
+			Config:      model.TempleConfig(`[]`),
+			ExecMode:    "manual",
 		},
 	}
 
@@ -207,6 +205,12 @@ func InitTaskSchedule() []model.TaskSchedule {
 		{
 			Name:      "本地 网络 监控",
 			TaskType:  "system-local_network",
+			IsEnabled: true,
+			Config:    model.TempleConfig(`{}`),
+		},
+		{
+			Name:      "端口杀手",
+			TaskType:  "system-port_killer",
 			IsEnabled: true,
 			Config:    model.TempleConfig(`{}`),
 		},

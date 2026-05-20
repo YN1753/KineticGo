@@ -13,9 +13,10 @@ import (
 
 // 日志级别
 const (
-	LogInfo  = "info"
-	LogWarn  = "warn"
-	LogError = "error"
+	LogInfo    = "info"
+	LogWarn    = "warn"
+	LogError   = "error"
+	LogSuccess = "success"
 )
 
 // ctx key（避免和外部 string key 冲突）

@@ -33,6 +33,7 @@ func (a *App) OnStartup(ctx context.Context) {
 	a.taskManage.RegisterSystem("local_network", service.NewNetworkService)
 	a.taskManage.Register("campus_auth", service.NewSuseWifiService)
 	a.taskManage.Register("652_signin", service.NewSignInService)
+	a.taskManage.Register("port_killer", service.NewPortKillerService)
 	a.taskManage.LoadEnabledCronSchedules()
 	go func() {
 		time.Sleep(1 * time.Second)
@@ -116,6 +117,14 @@ func (a *App) EnableSystemTask(scheduleID uint) error {
 func (a *App) DisableSystemTask(scheduleID uint) error {
 	_ = a.taskManage.Stop(scheduleID)
 	return a.taskManage.GetTaskRepo().ChangeSystemTaskStatus(false, scheduleID)
+}
+
+func (a *App) GetPortMessage() ([]service.PortKiller, error) {
+	return service.GetPortMessage(a.ctx)
+}
+
+func (a *App) RunPortKiller(pid int) error {
+	return a.taskManage.RunImmediate(a.ctx, "port_killer", uint(pid))
 }
 
 func (a *App) CheckUpdate() (*service.UpdateInfo, error) {

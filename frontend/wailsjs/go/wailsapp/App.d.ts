@@ -16,6 +16,8 @@ export function DisableSystemTask(arg1:number):Promise<void>;
 
 export function EnableSystemTask(arg1:number):Promise<void>;
 
+export function GetPortMessage():Promise<Array<service.PortKiller>>;
+
 export function GetRunningTaskIds():Promise<Array<number>>;
 
 export function GetSystemTaskScheduleList():Promise<Array<model.TaskSchedule>>;
@@ -33,6 +35,8 @@ export function GetTaskScheduleById(arg1:number):Promise<model.TaskSchedule>;
 export function GetTaskScheduleList():Promise<Array<model.TaskSchedule>>;
 
 export function GetVersion():Promise<string>;
+
+export function RunPortKiller(arg1:number):Promise<void>;
 
 export function RunTask(arg1:number):Promise<void>;
 

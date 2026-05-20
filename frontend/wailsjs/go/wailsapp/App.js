@@ -26,6 +26,10 @@ export function EnableSystemTask(arg1) {
   return window['go']['wailsapp']['App']['EnableSystemTask'](arg1);
 }
 
+export function GetPortMessage() {
+  return window['go']['wailsapp']['App']['GetPortMessage']();
+}
+
 export function GetRunningTaskIds() {
   return window['go']['wailsapp']['App']['GetRunningTaskIds']();
 }
@@ -60,6 +64,10 @@ export function GetTaskScheduleList() {
 
 export function GetVersion() {
   return window['go']['wailsapp']['App']['GetVersion']();
+}
+
+export function RunPortKiller(arg1) {
+  return window['go']['wailsapp']['App']['RunPortKiller'](arg1);
 }
 
 export function RunTask(arg1) {

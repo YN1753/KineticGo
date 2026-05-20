@@ -168,6 +168,20 @@ export function useTaskApi() {
     }
   }
 
+  async function fetchPortMessages() {
+    try {
+      const app = await getApp()
+      return await app.GetPortMessage()
+    } catch {
+      return []
+    }
+  }
+
+  async function runPortKiller(pid) {
+    const app = await getApp()
+    await app.RunPortKiller(pid)
+  }
+
   return {
     taskList, scheduleList, runningIds, loading,
     fetchTaskList, fetchTaskConfig, fetchScheduleList, fetchScheduleById,
@@ -176,5 +190,6 @@ export function useTaskApi() {
     fetchExecutions, fetchLogsByExecution,
     getVersion, checkUpdate, applyUpdate,
     fetchSystemTaskScheduleList, enableSystemTask, disableSystemTask,
+    fetchPortMessages, runPortKiller,
   }
 }

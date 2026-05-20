@@ -178,6 +178,26 @@ export namespace model {
 
 export namespace service {
 	
+	export class PortKiller {
+	    port: number;
+	    name: string;
+	    pid: number;
+	    path: string;
+	    isCritical: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PortKiller(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.port = source["port"];
+	        this.name = source["name"];
+	        this.pid = source["pid"];
+	        this.path = source["path"];
+	        this.isCritical = source["isCritical"];
+	    }
+	}
 	export class UpdateInfo {
 	    hasUpdate: boolean;
 	    currentVersion: string;

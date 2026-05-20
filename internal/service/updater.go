@@ -53,7 +53,7 @@ func CheckUpdate() (*UpdateInfo, error) {
 
 	if Version == "dev" {
 		// dev 版本不参与版本比较
-		info.HasUpdate = false
+		info.HasUpdate = true
 		return info, nil
 	}
 
@@ -64,8 +64,6 @@ func CheckUpdate() (*UpdateInfo, error) {
 
 	info.HasUpdate = true
 
-	// 简化：直接返回浏览器下载链接，不做自动更新
-	// Windows -> .exe, macOS -> .dmg
 	ext := ".exe"
 	if runtime.GOOS == "darwin" {
 		ext = ".dmg"

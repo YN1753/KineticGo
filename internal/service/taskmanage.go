@@ -171,7 +171,6 @@ func (t *TaskManageService) Start(ctx context.Context, scheduleId uint) error {
 			runtime.EventsEmit(childCtx, "log", runErr.Error())
 		}
 
-		// 定时任务跑完后刷新下次运行时间, 让前端的 "下次运行" 不再卡在首次计算结果
 		if task.CronExpr != "" {
 			if sched, parseErr := cron.ParseStandard(task.CronExpr); parseErr == nil {
 				_ = t.TaskRepo.UpdateScheduleNextRunTime(scheduleId, sched.Next(time.Now()))
@@ -181,6 +180,48 @@ func (t *TaskManageService) Start(ctx context.Context, scheduleId uint) error {
 		t.mutex.Lock()
 		delete(t.running, scheduleId)
 		t.mutex.Unlock()
+		t.TaskRepo.RemoveActiveTask(&t.TaskRepo.ActiveTasks)
+	}()
+
+	return nil
+}
+
+// RunImmediate 运行一个即时任务（不依赖 schedule 表，但记录 execution 和 log）
+func (t *TaskManageService) RunImmediate(ctx context.Context, taskType string, targetID uint) error {
+	factory, ok := t.registry[taskType]
+	if !ok {
+		return errors.New("未找到匹配的任务处理器: " + taskType)
+	}
+
+	instance := factory()
+	childCtx, cancel := context.WithCancel(ctx)
+
+	// 创建一个虚拟的 execution 记录 (OptionID 设为 0 表示非预设任务)
+	exec := &model.TaskExecution{
+		OptionID:      0,
+		TriggerType:   "immediate",
+		Status:        "running",
+		StartTime:     time.Now(),
+		ResultSummary: taskType + " 即时任务",
+	}
+	_ = t.TaskRepo.CreateTaskExecution(exec)
+	execId := exec.ID
+
+	childCtx = withTaskLog(childCtx, t.TaskRepo, 0, execId, true)
+
+	go func() {
+		defer cancel()
+		t.TaskRepo.AddActiveTask(&t.TaskRepo.ActiveTasks)
+		runErr := instance.Run(childCtx, targetID)
+
+		status := "success"
+		summary := "即时任务执行成功"
+		if runErr != nil {
+			status = "failed"
+			summary = runErr.Error()
+			TaskLog(childCtx, LogError, runErr.Error())
+		}
+		_ = t.TaskRepo.UpdateTaskExecution(execId, status, summary, time.Now())
 		t.TaskRepo.RemoveActiveTask(&t.TaskRepo.ActiveTasks)
 	}()
 
