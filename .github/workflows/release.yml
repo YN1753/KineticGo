@@ -90,9 +90,14 @@ jobs:
 
       - name: Clean disk
         run: |
+          echo "Before cleanup:"
+          df -h
           sudo rm -rf /usr/local/lib/android /usr/local/share/boost /opt/homebrew/Cellar 2>/dev/null || true
+          sudo rm -rf /Library/Developer/CoreSimulator/Profiles/Runtimes/* 2>/dev/null || true
           go clean -cache
           rm -rf ~/Library/Developer/Xcode/DerivedData/* 2>/dev/null || true
+          echo "After cleanup:"
+          df -h
 
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
@@ -106,12 +111,26 @@ jobs:
 
       - name: Package macOS .dmg
         run: |
-          hdiutil create \
-            -volname "KineticGo" \
-            -srcfolder build/bin/KineticGo.app \
-            -ov \
-            -format UDZO \
-            build/bin/KineticGo-macos-universal.dmg
+          # Calculate app size and add 20% padding
+          APP_SIZE=$(du -sm build/bin/KineticGo.app | cut -f1)
+          DMG_SIZE=$((APP_SIZE + (APP_SIZE / 5) + 20))
+          echo "App size: ${APP_SIZE}MB, Creating DMG with size: ${DMG_SIZE}MB"
+          
+          # Create an empty HFS+ DMG
+          hdiutil create -size ${DMG_SIZE}m -fs HFS+ -volname "KineticGo" -ov build/bin/tmp.dmg
+          
+          # Mount the DMG
+          hdiutil attach build/bin/tmp.dmg -mountpoint /Volumes/KineticGo
+          
+          # Copy the app into the DMG
+          cp -R build/bin/KineticGo.app /Volumes/KineticGo/
+          
+          # Detach the DMG
+          hdiutil detach /Volumes/KineticGo
+          
+          # Convert to compressed format
+          hdiutil convert build/bin/tmp.dmg -format UDZO -o build/bin/KineticGo-macos-universal.dmg
+          rm build/bin/tmp.dmg
 
       - name: Upload macOS Artifact
         uses: actions/upload-artifact@v4
