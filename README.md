@@ -1,195 +1,124 @@
 # KineticGo
 
-基于 [Wails](https://wails.io/) 框架开发的本地个人自动化与系统监控平台。支持任务卡片化管理、定时调度、实时日志推送。
+**KineticGo** 是一款基于 [Wails v2](https://wails.io/) 框架开发的现代桌面个人自动化与系统运维工具。它采用 **Go + Vue 3** 架构，旨在通过极简的 **Slate/Zinc** 风格界面，为开发者和校园用户提供一键式的高效自动化体验。
 
-![Platform](https://img.shields.io/badge/Platform-macOS%20|%20Windows-blue)
-![Go](https://img.shields.io/badge/Go-1.25-green)
+![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-blue)
+![Go](https://img.shields.io/badge/Go-1.25+-green)
 ![Wails](https://img.shields.io/badge/Wails-v2.12-red)
+![Vue](https://img.shields.io/badge/Vue-3.x-brightgreen)
 
-## 功能特性
+---
 
-### 系统监控
+## ✨ 核心特性
 
-| 任务类型 | 说明 |
-|---------|------|
-| `system-local_cpu` | 实时 CPU 使用率监控 |
-| `system-local_memory` | 实时内存使用率监控 |
-| `system-local_network` | 网络活动监控 |
-| `system-active_tasks` | 活跃任务数监控 |
+### 🚀 应用启动舱 (App Launcher)
+- **移动端图标风格**: 采用 1:1 紧凑型图标网格，告别凌乱的任务卡片。
+- **跨平台异步拉起**: 一键秒开本地 `.exe`、脚本、或网页 URL，不卡死主进程。
+- **高度自定义**: 支持可视化选择 7 种图标（火箭、闪电、代码等）与 6 种经过调色的主题色彩。
+- **智能标签**: 支持自定义快捷入口名称，方便辨识。
 
-### 业务自动化
-| 任务类型 | 说明 |
-|---------|------|
-| `campus_auth` | 校园网自动登录（四川轻化工大学） |
-| `652_signin` | 652 签到 |
+### 🏫 校园服务 (School Services)
+- **校园网自动连**: 实时监测网络状态，掉线自动执行登录协议（支持四川轻化工大学）。
+- **652 自动签到**: 集成 CAS 统一身份认证，定时自动完成位置签到。
+- **专属管理列**: 独立的校园服务管理区域，一键注册，状态实时同步。
 
-### 核心能力
-- **插件式架构**: 通过 `TaskFactory` 工厂模式实现任务注册与隔离
-- **定时调度**: 内置 cron 调度器，支持标准 cron 表达式
-- **实时日志**: 通过 Wails Events 实时推送任务日志到前端
-- **热启动**: 系统任务开机自动启动，常驻后台
-- **执行历史**: 完整的任务执行记录与日志审计
+### 🛠️ 端口大盘 (Port Killer)
+- **全量排查**: 跨平台扫描系统占用端口（Windows 使用 netstat，Unix 使用 lsof）。
+- **进程防护**: 智能识别系统核心进程与用户应用，防止误杀。
+- **一键释放**: 针对非核心进程支持一键强杀，解决端口冲突无需进入命令行。
 
-## 技术栈
+### 📊 系统实时看板
+- **实时推流**: 采用 Wails Events 驱动，秒级更新 CPU、内存、实时网速（上传/下载）及活跃任务数。
+- **会话日志终端**: 内置高性能日志推送服务，带内存节流机制，防止高频日志压垮 UI 渲染。
 
-```
-后端    │  Go 1.25 + GORM + SQLite
-前端    │  Vue 3 + Vite + Pinia
-框架    │  Wails v2
-调度    │  robfig/cron/v3
-系统信息 │  shirou/gopsutil/v3
-```
+---
 
-## 项目结构
+## 🛠️ 技术架构
 
-```
+### 后端 (Go)
+- **核心框架**: Wails v2
+- **依赖注入**: Google Wire
+- **数据库**: SQLite + GORM
+- **定时调度**: robfig/cron/v3
+- **跨平台兼容**: 封装了 `SysProcAttr` 抽象层，在 Windows 下支持后台静默启动（隐藏 CMD 黑窗口）。
+
+### 前端 (Vue 3)
+- **界面风格**: 极简 Slate/Zinc 设计语言
+- **组件库**: 原生 Vue 3 + Tailwind CSS
+- **图标库**: Lucide-vue-next
+- **响应式**: 适配 1280px+ 宽屏展示，三列布局一目了然。
+
+---
+
+## 📂 项目结构
+
+```text
 KineticGo/
-├── main.go                 # 应用入口
-├── embed.go                # 前端资源嵌入
-├── wails.json              # Wails 配置
-│
 ├── internal/
-│   ├── model/              # 数据模型
-│   │   ├── task.go         # Task, TaskSchedule, TaskExecution, TaskLog
-│   │   └── option.go       # TempleConfig 类型定义
-│   │
-│   ├── repository/         # 数据访问层
-│   │   ├── db.go           # GORM 初始化 & AutoMigrate
-│   │   └── task_repository.go
-│   │
-│   ├── service/            # 业务逻辑层
-│   │   ├── taskmanage.go    # 任务调度中心（注册、启动、停止）
-│   │   ├── scheduler.go     # Cron 调度器封装
-│   │   ├── system.go        # 系统监控任务（CPU/内存/网络）
-│   │   ├── suse_wifi.go     # 校园网登录
-│   │   ├── signin.go        # 652 签到服务
-│   │   ├── task_log.go      # 日志推送服务
-│   │   └── updater.go       # 自动更新
-│   │
-│   ├── ocr/                # OCR 识别（ONNX Runtime）
-│   │   └── onnx_engine.go
-│   │
-│   └── wailsapp/           # Wails 应用绑定层
-│       ├── app.go          # App 结构体，暴露方法给前端
-│       └── wire.go         # Google Wire 依赖注入
-│
-├── frontend/               # Vue 前端
+│   ├── model/           # 数据模型 (Task, Schedule, Config)
+│   ├── repository/      # 数据访问层 (GORM 初始化 & 种子数据)
+│   ├── service/         # 业务逻辑 (任务调度、应用拉起、端口排查、日志推送)
+│   └── wailsapp/        # Wails 绑定与 Wire 注入
+├── frontend/
 │   ├── src/
-│   │   ├── main.js
-│   │   ├── App.vue
-│   │   └── components/
-│   │       ├── DashboardView.vue    # 首页仪表盘
-│   │       ├── TaskCard.vue         # 任务卡片
-│   │       ├── TaskConfigForm.vue   # 任务配置表单
-│   │       ├── TaskLogsView.vue     # 实时日志
-│   │       ├── LogHistoryView.vue   # 历史审计
-│   │       ├── LoadTesterView.vue   # 压测工具
-│   │       ├── SettingsView.vue     # 设置页
-│   │       └── charts/
-│   │           └── QpsChart.vue     # QPS 图表
-│   └── package.json
-│
-└── pkg/
-    ├── goload/             # 压测引擎
-    └── location/           # 位置服务
+│   │   ├── components/  # Dashboard, TaskCard, TaskConfigForm, VisualPickers
+│   │   └── composables/ # API 封装
+│   └── vite.config.js
+├── main.go              # 应用入口 (窗口尺寸配置 1280x800)
+├── wails.json           # Wails 编译配置
+└── README.md
 ```
 
-## 核心接口
+---
 
-所有任务必须实现 `TaskInstance` 接口：
+## 🚀 快速开始
 
-```go
-type TaskInstance interface {
-    Run(ctx context.Context, scheduleId uint) error
-    Stop(scheduleId uint) error
-}
-```
+### 前置要求
+- [Go](https://golang.org/dl/) 1.25+
+- [Node.js](https://nodejs.org/) 18+
+- [Wails CLI](https://wails.io/docs/gettingstarted/installation)
 
-任务通过工厂模式注册：
-
-```go
-// 普通任务
-taskManage.Register("campus_auth", service.NewSuseWifiService)
-
-// 系统任务（开机自启、常驻后台）
-taskManage.RegisterSystem("local_cpu", service.NewCpuService)
-```
-
-## 数据模型
-
-### Task（任务模版）
-定义平台支持的所有任务类型，作为注册中心。
-
-| 字段 | 类型 | 说明 |
-|-----|------|------|
-| `ID` | uint | 主键 |
-| `Name` | string | 任务名称 |
-| `Type` | string | 任务标识（如 `load_test`） |
-| `Config` | TempleConfig | 前端表单定义的 JSON |
-
-### TaskSchedule（任务实例）
-用户在首页创建的每一个卡片。
-
-| 字段 | 类型 | 说明 |
-|-----|------|------|
-| `ID` | uint | 主键 |
-| `Name` | string | 实例名称 |
-| `TaskType` | string | 任务类型（如 `system-local_cpu`） |
-| `CronExpr` | string | Cron 表达式 |
-| `IsEnabled` | bool | 启用开关 |
-| `NextRunTime` | time.Time | 下次执行时间 |
-
-### TaskExecution & TaskLog
-记录每次任务触发起止时间、状态及详细流水。
-
-## 前端交互
-
-1. **首页仪表盘**: 顶部展示系统核心指标，主体为任务卡片 Grid
-2. **任务卡片**: 统一深色卡片设计，集成启动/停止按钮，内嵌微型控制台实时滚动日志
-3. **动态表单**: 根据后端 `TemplateSchema` 动态渲染输入组件
-4. **历史审计**: 展示执行历史，点击可查看完整结构化日志
-
-## 构建
-
-### 前置依赖
-
+### 开发环境
 ```bash
-# 安装 Node.js 依赖
+# 安装依赖
+go mod download
 cd frontend && npm install
 
-# 安装 Go 依赖
-go mod download
-```
-
-### 开发模式
-
-```bash
-# 前端开发服务器
-cd frontend && npm run dev
-
-# Wails 开发模式（在项目根目录）
+# 启动开发服务器
 wails dev
 ```
 
 ### 生产构建
-
 ```bash
-# 编译 macOS
-wails build -platform darwin/universal
-
-# 编译 Windows
+# 构建 Windows 版本
 wails build -platform windows
 
-# 编译 Linux
+# 构建 macOS 版本
+wails build -platform darwin/universal
+
+# 构建 Linux 版本
 wails build -platform linux
 ```
 
-产物位于 `build/` 目录。
+---
 
-## 配置
+## ⚙️ 进阶开发
 
-数据库文件位于应用同目录 `kineticgo.db`，首次启动时 GORM 会自动执行 AutoMigrate。
+### 注册新任务类型
+所有任务需实现 `TaskInstance` 接口。在 `internal/wailsapp/app.go` 中通过 `Register` 方法进行挂载：
 
-## License
+```go
+// 注册业务任务
+a.taskManage.Register("your_task_type", service.NewYourService)
 
-MIT
+// 注册系统常驻任务
+a.taskManage.RegisterSystem("your_sys_task", service.NewYourSysService)
+```
+
+---
+
+## 📄 License
+基于 MIT 协议开源。
+
+---
+*Powered by Gemini CLI & KineticGo Team*

@@ -329,9 +329,13 @@ async function submitConfig() {
   cronError.value = ''; const isSchedule = chosenExecMode.value === 'schedule'
   if (isSchedule && !cronExpr.value.trim()) { cronError.value = '请填写 cron 表达式'; return }
   const values = configForm.value?.getValues() ?? {}; const cronToSend = isSchedule ? cronExpr.value.trim() : ''
-  if (editingSchedule.value) await updateSchedule({ ...editingSchedule.value, Name: taskName.value.trim(), Config: JSON.stringify(values), CronExpr: cronToSend, Option: taskOption.value.trim() })
-  else await createSchedule({ Name: taskName.value.trim(), TaskType: selectedTask.value.Type, Config: JSON.stringify(values), CronExpr: cronToSend, IsEnabled: true, Option: taskOption.value.trim() })
-  closeConfig(); await fetchScheduleList()
+  try {
+    if (editingSchedule.value) await updateSchedule({ ...editingSchedule.value, Name: taskName.value.trim(), Config: JSON.stringify(values), CronExpr: cronToSend, Option: taskOption.value.trim() })
+    else await createSchedule({ Name: taskName.value.trim(), TaskType: selectedTask.value.Type, Config: JSON.stringify(values), CronExpr: cronToSend, IsEnabled: true, Option: taskOption.value.trim() })
+    closeConfig(); await fetchScheduleList()
+  } catch (e) {
+    cronError.value = '保存失败: ' + e
+  }
 }
 function closeConfig() { showConfig.value = false; cronExpr.value = ''; taskName.value = ''; cronError.value = ''; chosenExecMode.value = 'manual'; lockExecMode.value = false; editingSchedule.value = null; taskOption.value = '' }
 function selectExecMode(mode) { if (lockExecMode.value && mode !== chosenExecMode.value) return; chosenExecMode.value = mode; cronError.value = '' }
@@ -368,10 +372,10 @@ const taskOption = ref('')
 const cronError = ref('')
 
 const CRON_PRESETS = [
+  { label: '每 10 秒', expr: '*/10 * * * * *' },
   { label: '每分钟', expr: '0 * * * * *' },
   { label: '每 5 分钟', expr: '0 */5 * * * *' },
   { label: '每小时', expr: '0 0 * * * *' },
-  { label: '每天零点', expr: '0 0 0 * * *' },
 ]
 </script>
 
@@ -653,7 +657,7 @@ const CRON_PRESETS = [
             </div>
             <div v-if="chosenExecMode === 'schedule'" class="space-y-3 animate-fade-in">
               <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">Cron 表达式</label>
-              <input v-model="cronExpr" type="text" placeholder="分 时 日 月 周" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono text-gray-700 focus:outline-none focus:border-blue-400 shadow-inner" />
+              <input v-model="cronExpr" type="text" placeholder="秒 分 时 日 月 周" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono text-gray-700 focus:outline-none focus:border-blue-400 shadow-inner" />
               <div v-if="cronError" class="text-[10px] text-red-500 font-bold px-1">{{ cronError }}</div>
               <div class="flex flex-wrap gap-2">
                 <button v-for="p in CRON_PRESETS" :key="p.expr" @click="applyCronPreset(p.expr)" class="px-2.5 py-1 text-[10px] rounded-lg bg-gray-50 text-gray-500 border border-gray-200 hover:bg-blue-50 hover:text-blue-600 transition-colors shadow-sm">{{ p.label }}</button>

@@ -14,8 +14,10 @@ func main() {
 
 	err := wails.Run(&options.App{
 		Title:      "KineticGo",
-		Width:      1024,
-		Height:     768,
+		Width:      1280,
+		Height:     800,
+		MinWidth:   1024,
+		MinHeight:  768,
 		Assets:     DesktopDist,
 		OnStartup:  app.OnStartup,
 		OnShutdown: app.OnShutdown,

@@ -15,7 +15,7 @@ type Scheduler struct {
 }
 
 func NewScheduler(runFn func(uint)) *Scheduler {
-	c := cron.New(cron.WithChain(
+	c := cron.New(cron.WithSeconds(), cron.WithChain(
 		cron.Recover(cron.DefaultLogger),            // panic 不拖死调度器
 		cron.SkipIfStillRunning(cron.DefaultLogger), // 上次没跑完就跳过本次
 	))

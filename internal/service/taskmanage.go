@@ -171,7 +171,7 @@ func (t *TaskManageService) Start(ctx context.Context, scheduleId uint) error {
 			runtime.EventsEmit(childCtx, "log", runErr.Error())
 		}
 		if task.CronExpr != "" {
-			if sched, parseErr := cron.ParseStandard(task.CronExpr); parseErr == nil {
+			if sched, parseErr := secondParser.Parse(task.CronExpr); parseErr == nil {
 				_ = t.TaskRepo.UpdateScheduleNextRunTime(scheduleId, sched.Next(time.Now()))
 			}
 		}
@@ -269,12 +269,16 @@ func (t *TaskManageService) GetTaskScheduleList() ([]model.TaskSchedule, error) 
 	return *list, nil
 }
 
+var secondParser = cron.NewParser(
+	cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
+)
+
 func prepareCron(sch *model.TaskSchedule) error { //检验cron合法性并且算出下次时间
 	if sch.CronExpr == "" {
 		sch.NextRunTime = time.Time{}
 		return nil
 	}
-	schedule, err := cron.ParseStandard(sch.CronExpr)
+	schedule, err := secondParser.Parse(sch.CronExpr)
 	if err != nil {
 		return errors.New("cron 表达式无效: " + err.Error())
 	}
