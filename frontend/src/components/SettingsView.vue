@@ -16,9 +16,9 @@ const appInfo = ref({
   features: [
     { title: '系统监控', desc: 'CPU、内存、上下行网速与活跃任务数实时刷新' },
     { title: '校园网自动连', desc: '检测网络状态,断线后自动完成 Portal 认证' },
-    { title: '性能压测', desc: '对指定 URL 发起高并发 HTTP 压力测试' },
-    { title: '延迟雷达', desc: '按频率探测目标 IP/域名的延迟与丢包率' },
+    { title: '652 自动签到', desc: 'CAS 登录后自动提交签到定位，支持漏跑补跑与失败重试' },
     { title: '端口杀手', desc: '扫描并一键终结占用指定端口的进程' },
+    { title: '应用启动舱', desc: '一键异步拉起本地程序、脚本或网页 URL' },
   ]
 })
 
@@ -59,10 +59,11 @@ async function doCheckUpdate() {
     return
   }
 
-  updateStatus.value.currentVersion = info.CurrentVer || appInfo.value.version
-  updateStatus.value.latestVersion = info.LatestVer || ''
+  // Wails 按 json tag 序列化：hasUpdate / currentVersion / latestVersion / downloadUrl
+  updateStatus.value.currentVersion = info.currentVersion || appInfo.value.version
+  updateStatus.value.latestVersion = info.latestVersion || ''
 
-  if (!info.HasUpdate) {
+  if (!info.hasUpdate) {
     updateStatus.value.hasUpdate = false
     updateStatus.value.message = '已是最新版本'
     return
@@ -74,14 +75,14 @@ async function doCheckUpdate() {
 }
 
 async function doApplyUpdate() {
-  if (!updateInfo.value?.DownloadURL) {
+  if (!updateInfo.value?.downloadUrl) {
     updateError.value = '未找到下载链接'
     return
   }
   updating.value = true
   updateError.value = ''
   try {
-    await applyUpdate(updateInfo.value.DownloadURL)
+    await applyUpdate(updateInfo.value.downloadUrl)
   } catch (e) {
     updateError.value = e?.message || '打开下载页失败，请手动访问'
   } finally {
@@ -366,14 +367,14 @@ function isSystemTaskRunning(taskId) {
             <div class="flex items-center gap-4 text-sm">
               <div class="flex-1 p-3 rounded-xl bg-gray-50 border border-gray-100 text-center">
                 <p class="text-[10px] text-gray-400 uppercase font-bold">当前版本</p>
-                <p class="text-base font-mono font-bold text-gray-600">v{{ updateInfo?.CurrentVer }}</p>
+                <p class="text-base font-mono font-bold text-gray-600">v{{ updateInfo?.currentVersion }}</p>
               </div>
               <div class="p-2 rounded-full bg-blue-50 text-blue-500">
                 <ChevronRight :size="16" />
               </div>
               <div class="flex-1 p-3 rounded-xl bg-blue-50 border border-blue-100 text-center">
                 <p class="text-[10px] text-blue-400 uppercase font-bold">最新版本</p>
-                <p class="text-base font-mono font-bold text-blue-600">v{{ updateInfo?.LatestVer }}</p>
+                <p class="text-base font-mono font-bold text-blue-600">v{{ updateInfo?.latestVersion }}</p>
               </div>
             </div>
 
@@ -382,7 +383,7 @@ function isSystemTaskRunning(taskId) {
                 更新日志 / Release Notes
               </div>
               <div class="px-4 py-3 text-sm text-gray-600 whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed custom-scrollbar">
-                {{ updateInfo?.ReleaseNotes || '暂无详细更新说明' }}
+                {{ updateInfo?.releaseNotes || '暂无详细更新说明' }}
               </div>
             </div>
 
@@ -400,7 +401,7 @@ function isSystemTaskRunning(taskId) {
               </button>
               <button
                 @click="doApplyUpdate"
-                :disabled="updating || !updateInfo?.DownloadURL"
+                :disabled="updating || !updateInfo?.downloadUrl"
                 class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95"
               >
                 <ExternalLink v-if="!updating" :size="14" />

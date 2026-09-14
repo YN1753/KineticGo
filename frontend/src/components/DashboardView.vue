@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { 
   Cpu, MemoryStick, Activity, ArrowUp, ArrowDown, Plus, X, 
-  ScrollText, Wifi, Zap, Radar, Terminal, Clock, Hand, 
+  ScrollText, Wifi, Zap, Terminal, Clock, Hand,
   ClipboardCheck, ChevronDown, ChevronRight, Search, Scan, 
   Cpu as CpuIcon, Code, Terminal as ShellIcon, Database, 
   BrainCircuit, AlertCircle, Info, RefreshCw, Power, Rocket, School,
@@ -28,12 +28,19 @@ const configForm = ref(null)
 const typeIcons = {
   campus_auth: Wifi,
   '652_signin': ClipboardCheck,
-  load_test: Zap,
-  net_radar: Radar,
   port_killer: Terminal,
   app_launcher: Rocket,
   // Launcher Icons mapping
   Rocket, Zap, Code, Terminal, Globe, Cpu, Monitor
+}
+
+function safeParseConfig(configStr) {
+  try {
+    const config = typeof configStr === 'string' ? JSON.parse(configStr) : configStr
+    return config && typeof config === 'object' ? config : {}
+  } catch {
+    return {}
+  }
 }
 
 // modal state
@@ -465,11 +472,11 @@ const CRON_PRESETS = [
                   </button>
                 </div>
 
-                <div 
+                <div
                   class="w-12 h-12 md:w-14 md:h-14 rounded-[1.2rem] flex items-center justify-center shadow-sm group-hover:scale-105 group-active:scale-95 transition-all shadow-inner shrink-0 border border-transparent group-hover:border-white/50"
-                  :class="JSON.parse(s.Config)?.color || 'text-blue-500 bg-blue-50'"
+                  :class="safeParseConfig(s.Config).color || 'text-blue-500 bg-blue-50'"
                 >
-                  <component :is="typeIcons[JSON.parse(s.Config)?.icon] || Rocket" :size="24" />
+                  <component :is="typeIcons[safeParseConfig(s.Config).icon] || Rocket" :size="24" />
                 </div>
                 
                 <div class="w-full text-center">

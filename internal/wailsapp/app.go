@@ -22,7 +22,9 @@ func NewApp(taskManage *service.TaskManageService) *App {
 
 func (a *App) OnStartup(ctx context.Context) {
 	a.ctx = ctx
-	a.taskManage.SetRootCtx(ctx)
+	// 任务调度使用独立 root，不与窗口 ctx 绑定；EventsEmit 走 service.SetAppEventCtx
+	a.taskManage.SetRootCtx(context.Background())
+	service.SetAppEventCtx(ctx)
 
 	// 启动日志前端推送消费 goroutine（串行化 + 节流，避免 macOS 高频 EventsEmit 被杀）
 	service.StartLogEmitter()
@@ -36,6 +38,8 @@ func (a *App) OnStartup(ctx context.Context) {
 	a.taskManage.Register("port_killer", service.NewPortKillerService)
 	a.taskManage.Register("app_launcher", service.NewAppLauncherService)
 	a.taskManage.LoadEnabledCronSchedules()
+	// 标记上次异常退出的 running 执行，并对错过的 cron 窗口补跑
+	a.taskManage.PrepareSchedules()
 	go func() {
 		time.Sleep(1 * time.Second)
 		a.taskManage.AutoStartSystemTasks(a.ctx)

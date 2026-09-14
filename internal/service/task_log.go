@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"kineticgo/internal/model"
@@ -28,6 +29,7 @@ const (
 	keyRepo       taskCtxKey = "task_repo"
 	keyPersist    taskCtxKey = "persist_log"
 	keyTrigger    taskCtxKey = "trigger_type"
+	keyAttempt    taskCtxKey = "retry_attempt"
 )
 
 // WithTrigger 标记本次 Start 是手动还是定时触发
@@ -40,6 +42,18 @@ func triggerFrom(ctx context.Context) string {
 		return v
 	}
 	return "manual"
+}
+
+// WithAttempt 标记本次是第几次调度层重试（1 起）
+func WithAttempt(ctx context.Context, attempt int) context.Context {
+	return context.WithValue(ctx, keyAttempt, attempt)
+}
+
+func attemptFrom(ctx context.Context) int {
+	if v, ok := ctx.Value(keyAttempt).(int); ok {
+		return v
+	}
+	return 0
 }
 
 // withTaskLog 把日志上下文注入 ctx，TaskLog 调用时从中读
@@ -65,10 +79,27 @@ type logEntry struct {
 }
 
 var (
-	logCh     chan logEntry
-	logInit   sync.Once
-	logStopCh chan struct{}
+	logCh       chan logEntry
+	logInit     sync.Once
+	logStopCh   chan struct{}
+	logStopOnce sync.Once
+	logStopped  atomic.Bool
+	appEventCtx atomic.Value // context.Context，Wails EventsEmit 用
 )
+
+// SetAppEventCtx 注入 Wails 窗口 ctx，供日志/事件推送到前端使用
+func SetAppEventCtx(ctx context.Context) {
+	if ctx != nil {
+		appEventCtx.Store(ctx)
+	}
+}
+
+func eventCtx() context.Context {
+	if v, ok := appEventCtx.Load().(context.Context); ok && v != nil {
+		return v
+	}
+	return context.Background()
+}
 
 // StartLogEmitter 在应用启动时调用，启动后台日志消费 goroutine.
 // 所有 TaskLog 产生的日志都先进 channel，由单消费者串行推送到前端，
@@ -84,7 +115,7 @@ func StartLogEmitter() {
 					if !ok {
 						return
 					}
-					runtime.EventsEmit(entry.ctx, "task_log", map[string]any{
+					runtime.EventsEmit(eventCtx(), "task_log", map[string]any{
 						"scheduleId": entry.scheduleId,
 						"level":      entry.level,
 						"message":    entry.message,
@@ -103,13 +134,14 @@ func StartLogEmitter() {
 }
 
 // StopLogEmitter 在应用退出时调用，优雅关闭日志消费 goroutine.
+// 不 close(logCh)，避免仍在跑的任务 goroutine 向已关闭 channel 发送导致 panic.
 func StopLogEmitter() {
-	if logStopCh != nil {
-		close(logStopCh)
-	}
-	if logCh != nil {
-		close(logCh)
-	}
+	logStopOnce.Do(func() {
+		logStopped.Store(true)
+		if logStopCh != nil {
+			close(logStopCh)
+		}
+	})
 }
 
 // TaskLog 任务内部统一日志通道：emit 给前端 + 必要时写库.
@@ -118,17 +150,20 @@ func TaskLog(ctx context.Context, level, message string) {
 	scheduleId, _ := ctx.Value(keyScheduleId).(uint)
 	now := time.Now()
 
-	// 异步推送到前端（非阻塞，channel 满则丢弃，避免阻塞业务）
-	select {
-	case logCh <- logEntry{
-		ctx:        ctx,
-		scheduleId: scheduleId,
-		level:      level,
-		message:    message,
-		time:       now,
-	}:
-	default:
-		// channel 已满（100 条），直接丢弃前端推送，保留持久化
+	// 已关停则只做持久化，不再推前端
+	if !logStopped.Load() && logCh != nil {
+		// 异步推送到前端（非阻塞，channel 满则丢弃，避免阻塞业务）
+		select {
+		case logCh <- logEntry{
+			ctx:        ctx,
+			scheduleId: scheduleId,
+			level:      level,
+			message:    message,
+			time:       now,
+		}:
+		default:
+			// channel 已满（100 条），直接丢弃前端推送，保留持久化
+		}
 	}
 
 	// 持久化逻辑不变

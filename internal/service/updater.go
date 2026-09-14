@@ -51,22 +51,12 @@ func CheckUpdate() (*UpdateInfo, error) {
 		ReleaseNotes: gh.Body,
 	}
 
-	if Version == "dev" {
-		// dev 版本不参与版本比较
-		info.HasUpdate = true
-		return info, nil
-	}
-
-	if gh.TagName == Version || strings.TrimPrefix(gh.TagName, "v") == Version {
-		info.HasUpdate = false
-		return info, nil
-	}
-
-	info.HasUpdate = true
-
 	ext := ".exe"
-	if runtime.GOOS == "darwin" {
+	switch runtime.GOOS {
+	case "darwin":
 		ext = ".dmg"
+	case "linux":
+		ext = ".AppImage"
 	}
 	for _, a := range gh.Assets {
 		if strings.HasSuffix(a.Name, ext) {
@@ -75,18 +65,64 @@ func CheckUpdate() (*UpdateInfo, error) {
 		}
 	}
 
+	if Version == "dev" {
+		// dev 版本：只要远端有安装包就提示可下载
+		info.HasUpdate = info.DownloadURL != ""
+		return info, nil
+	}
+
+	if compareVersions(gh.TagName, Version) <= 0 {
+		info.HasUpdate = false
+		return info, nil
+	}
+	info.HasUpdate = true
 	return info, nil
+}
+
+// compareVersions 比较 tag 与当前版本，支持 v 前缀；latest > current 返回 1
+func compareVersions(latest, current string) int {
+	normalize := func(s string) string {
+		s = strings.TrimSpace(s)
+		s = strings.TrimPrefix(s, "v")
+		s = strings.TrimPrefix(s, "V")
+		return s
+	}
+	latest, current = normalize(latest), normalize(current)
+	if latest == current {
+		return 0
+	}
+	lp := strings.Split(latest, ".")
+	cp := strings.Split(current, ".")
+	for i := 0; i < len(lp) || i < len(cp); i++ {
+		var lv, cv int
+		if i < len(lp) {
+			fmt.Sscanf(lp[i], "%d", &lv)
+		}
+		if i < len(cp) {
+			fmt.Sscanf(cp[i], "%d", &cv)
+		}
+		if lv != cv {
+			if lv > cv {
+				return 1
+			}
+			return -1
+		}
+	}
+	return 0
 }
 
 // ApplyUpdate 直接打开浏览器下载页面，让用户手动下载安装
 func ApplyUpdate(downloadURL string) error {
-	// 打开浏览器下载
+	if strings.TrimSpace(downloadURL) == "" {
+		return fmt.Errorf("下载链接为空")
+	}
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
 		cmd = exec.Command("open", downloadURL)
 	case "windows":
-		cmd = exec.Command("cmd", "/c", "start", downloadURL)
+		// start 的第一个空参数是窗口标题，避免 URL 被当成标题
+		cmd = exec.Command("cmd", "/c", "start", "", downloadURL)
 	default:
 		cmd = exec.Command("xdg-open", downloadURL)
 	}

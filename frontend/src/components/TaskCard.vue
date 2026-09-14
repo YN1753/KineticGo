@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { Play, Square, Settings, X, Wifi, Zap, Radar, Terminal, ScrollText, Clock, ClipboardCheck, Trash2, Rocket, ChevronDown } from 'lucide-vue-next'
+import { Play, Square, Settings, X, Wifi, Zap, Terminal, ScrollText, Clock, ClipboardCheck, Trash2, Rocket, ChevronDown } from 'lucide-vue-next'
 
 const props = defineProps({
   schedule: { type: Object, required: true },
@@ -13,8 +13,6 @@ const emit = defineEmits(['run', 'stop', 'edit', 'delete'])
 const typeIcons = {
   campus_auth: Wifi,
   '652_signin': ClipboardCheck,
-  load_test: Zap,
-  net_radar: Radar,
   port_killer: Terminal,
   app_launcher: Rocket,
 }

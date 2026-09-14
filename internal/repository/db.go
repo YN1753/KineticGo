@@ -72,6 +72,10 @@ func DbSeedInit(db *gorm.DB) {
 		db.Create(&newTemplates)
 	}
 
+	// 清理历史种子中已下线的任务类型（压测/延迟雷达）及误种的 port_killer 调度
+	db.Where("type IN ?", []string{"load_test", "net_radar"}).Delete(&model.Task{})
+	db.Where("task_type IN ?", []string{"load_test", "net_radar", "port_killer"}).Delete(&model.TaskSchedule{})
+
 	var existingScheduleTypes []string
 
 	db.Model(&model.TaskSchedule{}).
@@ -150,27 +154,6 @@ func InitTaskTemplates() []model.Task {
 			ExecMode: "both",
 		},
 		{
-			Type:        "load_test",
-			Name:        "性能压测",
-			Description: "对指定目标进行高并发HTTP压力测试",
-			Config: model.TempleConfig(`[
-				{"field": "url", "label": "压测目标 URL", "input_type": "text", "placeholder": "https://api.example.com"},
-				{"field": "concurrency", "label": "并发请求数", "input_type": "number", "default_val": "50"},
-				{"field": "duration", "label": "持续时间(秒)", "input_type": "number", "default_val": "60"}
-			]`),
-			ExecMode: "manual",
-		},
-		{
-			Type:        "net_radar",
-			Name:        "延迟雷达",
-			Description: "实时监控网络延迟和丢包率",
-			Config: model.TempleConfig(`[
-				{"field": "target", "label": "监控目标 IP/域名", "input_type": "text", "placeholder": "114.114.114.114"},
-				{"field": "interval", "label": "探测频率(秒)", "input_type": "number", "default_val": "5"}
-			]`),
-			ExecMode: "manual",
-		},
-		{
 			Type:        "port_killer",
 			Name:        "端口杀手",
 			Description: "扫描并一键关闭占用特定端口的系统进程",
@@ -212,12 +195,6 @@ func InitTaskSchedule() []model.TaskSchedule {
 		{
 			Name:      "本地 网络 监控",
 			TaskType:  "system-local_network",
-			IsEnabled: true,
-			Config:    model.TempleConfig(`{}`),
-		},
-		{
-			Name:      "端口杀手",
-			TaskType:  "port_killer",
 			IsEnabled: true,
 			Config:    model.TempleConfig(`{}`),
 		},

@@ -2,13 +2,15 @@ package service
 
 import (
 	"context"
+	"sync/atomic"
+	"time"
+
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/net"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"kineticgo/internal/model"
 	"kineticgo/internal/repository"
-	"time"
 )
 
 // cpu部分
@@ -35,8 +37,11 @@ func (c CpuService) Run(ctx context.Context, scheduleId uint) error {
 			return nil
 
 		case <-ticker.C:
-			percent, _ := cpu.Percent(0, false)
-			runtime.EventsEmit(ctx, "stats_update", map[string]interface{}{
+			percent, err := cpu.Percent(0, false)
+			if err != nil || len(percent) == 0 {
+				continue
+			}
+			runtime.EventsEmit(eventCtx(), "stats_update", map[string]interface{}{
 				"cpuPercent": percent[0],
 			})
 		}
@@ -69,7 +74,7 @@ func (m MemoryService) Run(ctx context.Context, scheduleId uint) error {
 			return nil
 		case <-ticker.C:
 			info, _ := mem.VirtualMemory()
-			runtime.EventsEmit(ctx, "stats_update", map[string]interface{}{
+			runtime.EventsEmit(eventCtx(), "stats_update", map[string]interface{}{
 				"memPercent": info.UsedPercent,
 			})
 		}
@@ -100,8 +105,8 @@ func (a ActiveTasksService) Run(ctx context.Context, scheduleId uint) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			runtime.EventsEmit(ctx, "stats_update", map[string]interface{}{
-				"activeTasks": a.TaskRepo.ActiveTasks,
+			runtime.EventsEmit(eventCtx(), "stats_update", map[string]interface{}{
+				"activeTasks": atomic.LoadInt64(&a.TaskRepo.ActiveTasks),
 			})
 		}
 	}
@@ -155,7 +160,7 @@ func (n NetworkService) Run(ctx context.Context, scheduleId uint) error {
 			lastRecv = currentRecv
 			lastSent = currentSent
 
-			runtime.EventsEmit(ctx, "stats_update", map[string]interface{}{
+			runtime.EventsEmit(eventCtx(), "stats_update", map[string]interface{}{
 				"downloadSpeed": downloadSpeed,
 				"uploadSpeed":   uploadSpeed,
 			})

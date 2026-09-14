@@ -19,8 +19,6 @@ export function useTaskApi() {
       console.warn('[mock] GetTaskList')
       taskList.value = [
         { ID: 1, Name: '校园网自动连', Type: 'campus_auth', Description: '检测网络状态并在掉线时自动执行登录认证' },
-        { ID: 2, Name: '性能压测', Type: 'load_test', Description: '对指定目标进行高并发HTTP压力测试' },
-        { ID: 3, Name: '延迟雷达', Type: 'net_radar', Description: '实时监控网络延迟和丢包率' },
         { ID: 4, Name: '端口杀手', Type: 'port_killer', Description: '扫描并一键关闭占用特定端口的系统进程' },
       ]
     } finally {

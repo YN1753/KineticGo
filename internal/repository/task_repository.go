@@ -84,11 +84,34 @@ func (t *TaskRepository) DeleteTaskSchedule(id uint) error {
 }
 func (t *TaskRepository) GetTaskScheduleById(id uint) (*model.TaskSchedule, error) {
 	var task model.TaskSchedule
-	err := t.Db.Model(&model.TaskSchedule{}).Where("id = ? ", id).Find(&task).Error
+	err := t.Db.Where("id = ?", id).First(&task).Error
 	if err != nil {
 		return nil, err
 	}
 	return &task, nil
+}
+
+// MarkInterruptedExecutions 启动时把上次异常退出仍停留在 running 的执行记录标成 interrupted.
+func (t *TaskRepository) MarkInterruptedExecutions() error {
+	return t.Db.Model(&model.TaskExecution{}).
+		Where("status = ?", "running").
+		Updates(map[string]any{
+			"status":         "interrupted",
+			"result_summary": "应用退出时任务仍在运行，已标记为中断",
+			"end_time":       time.Now(),
+		}).Error
+}
+
+// HasSuccessSince 判断该调度在 since 之后是否已有成功执行（用于 catch-up 去重）.
+func (t *TaskRepository) HasSuccessSince(scheduleId uint, since time.Time) (bool, error) {
+	var count int64
+	err := t.Db.Model(&model.TaskExecution{}).
+		Where("option_id = ? AND status = ? AND start_time >= ?", scheduleId, "success", since).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func (t *TaskRepository) GetEnabledSystemSchedules() ([]model.TaskSchedule, error) {
@@ -111,13 +134,11 @@ func (t *TaskRepository) GetEnabledCronSchedules() ([]model.TaskSchedule, error)
 }
 
 func (t *TaskRepository) CreateTaskLog(log *model.TaskLog) error {
-	t.Db.Create(log)
-	return nil
+	return t.Db.Create(log).Error
 }
 
 func (t *TaskRepository) CreateTaskExecution(task *model.TaskExecution) error {
-	t.Db.Create(task)
-	return nil
+	return t.Db.Create(task).Error
 }
 
 func (t *TaskRepository) UpdateTaskExecution(id uint, status, summary string, endTime time.Time) error {

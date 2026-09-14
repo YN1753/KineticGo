@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ScrollText, Plus, X, Play, Settings, Trash2, Zap, Wifi, Radar, Terminal } from 'lucide-vue-next'
+import { ScrollText, Plus, X, Play, Settings, Trash2, Wifi, Terminal, ClipboardCheck, Rocket } from 'lucide-vue-next'
 import { useTaskApi } from '../composables/useTaskApi'
 import TaskConfigForm from './TaskConfigForm.vue'
 
@@ -25,9 +25,9 @@ const scheduleToDelete = ref(null)
 
 const typeIcons = {
   campus_auth: Wifi,
-  load_test: Zap,
-  net_radar: Radar,
+  '652_signin': ClipboardCheck,
   port_killer: Terminal,
+  app_launcher: Rocket,
   system: ScrollText,
 }
 
